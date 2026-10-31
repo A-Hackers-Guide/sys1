@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>sys1</title>
+<meta name="description" content="Pool the spare power of every computer you have into one cloud. Free, open source, public domain, every OS.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a machine-room page. One hero with a live "rack" of machines whose idle
+   capacity fills with pool work, then plain, scannable sections on a single column grid. */
+:root {
+  --paper: #f3f5f2;
+  --sheet: #ffffff;
+  --ink: #0f1a17;
+  --muted: #56645f;
+  --rule: #dce3df;
+  --led: #0b7d60;      /* idle-LED green: pool work */
+  --led-soft: #d6efe6;
+  --owner: #b9c4bf;    /* the owner's own usage */
+  --amber: #a05a00;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0c1312; --sheet: #131d1b; --ink: #e8efec; --muted: #93a39d; --rule: #22302d;
+    --led: #3dd6a3; --led-soft: #133a30; --owner: #3a4945; --amber: #f2b13c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0c1312; --sheet: #131d1b; --ink: #e8efec; --muted: #93a39d; --rule: #22302d;
+  --led: #3dd6a3; --led-soft: #133a30; --owner: #3a4945; --amber: #f2b13c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 17px/1.6 var(--body);
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+a { color: var(--led); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--led); outline-offset: 3px; border-radius: 4px; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--display); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: -.02em; }
+h2 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 800; }
+h3 { font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+p { margin: 0; }
+code, pre, .mono { font-family: var(--mono); font-size: .86em; }
+.label { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+/* top bar */
+.bar { display: flex; align-items: center; gap: 24px; padding-block: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 800 22px var(--display); color: var(--ink); text-decoration: none; }
+.bar nav { display: flex; gap: 20px; margin-left: auto; flex-wrap: wrap; }
+.bar nav a { color: var(--muted); text-decoration: none; font-size: 15px; }
+.bar nav a:hover { color: var(--ink); }
+
+/* hero */
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; padding-block: 40px 72px; }
+.hero h1 { font-size: clamp(40px, 5.4vw, 64px); font-weight: 800; }
+.hero h1 em { font-style: normal; color: var(--led); }
+.hero .lede { font-size: 20px; color: var(--muted); margin-top: 22px; max-width: 34ch; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; font: 600 16px var(--body); text-decoration: none;
+  padding: 12px 20px; border-radius: 10px; border: 1.5px solid var(--ink); color: var(--ink);
+}
+.btn.solid { background: var(--ink); color: var(--paper); }
+.btn:hover { transform: translateY(-1px); }
+.facts { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 30px; color: var(--muted); font-size: 14px; }
+.facts b { color: var(--ink); font-weight: 600; }
+
+/* the rack */
+.rack { background: var(--sheet); border: 1px solid var(--rule); border-radius: 18px; padding: 20px; min-width: 0; }
+.rack-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+.rack-total { font: 700 15px var(--mono); font-variant-numeric: tabular-nums; }
+.rack-total span { color: var(--led); }
+.machines { display: grid; gap: 10px; }
+.m { display: grid; grid-template-columns: 112px 1fr 52px; gap: 12px; align-items: center; font-size: 13px; }
+.m .name { font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m .meter { height: 14px; border-radius: 4px; background: var(--paper); border: 1px solid var(--rule); display: flex; overflow: hidden; }
+.m .own { background: var(--owner); transition: width .9s ease; }
+.m .pool { background: var(--led); transition: width .9s ease; }
+.m .pct { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
+.legend { display: flex; gap: 18px; margin-top: 16px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+section { padding-block: 72px; border-top: 1px solid var(--rule); }
+.intro { display: grid; grid-template-columns: 1fr 1.4fr; gap: 48px; margin-bottom: 40px; align-items: end; }
+.intro p { color: var(--muted); font-size: 18px; max-width: 52ch; }
+
+/* two apps */
+.apps { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.app { background: var(--sheet); border: 1px solid var(--rule); border-radius: 16px; padding: 28px; display: grid; gap: 12px; align-content: start; }
+.app .tag { font: 600 13px var(--mono); color: var(--led); }
+.app ul { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 6px; }
+
+/* features */
+.feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px 40px; }
+.feat { display: grid; gap: 8px; align-content: start; border-top: 2px solid var(--ink); padding-top: 16px; }
+.feat p { color: var(--muted); font-size: 16px; }
+
+/* failover sequence */
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; counter-reset: s; }
+.step { padding: 22px 22px 22px 0; border-top: 2px solid var(--rule); position: relative; display: grid; gap: 8px; align-content: start; }
+.step::before { counter-increment: s; content: counter(s); font: 700 13px var(--mono); color: var(--paper); background: var(--led); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; position: absolute; top: -14px; left: 0; }
+.step h3 { margin-top: 12px; font-size: 19px; }
+.step p { color: var(--muted); font-size: 15px; }
+
+/* install */
+.install { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.cmd { background: var(--ink); color: var(--paper); border-radius: 14px; padding: 18px 20px; display: grid; gap: 10px; min-width: 0; }
+.cmd .label { color: color-mix(in srgb, var(--paper) 60%, transparent); }
+.cmd-row { display: flex; gap: 10px; align-items: center; }
+.cmd pre { margin: 0; overflow-x: auto; flex: 1; min-width: 0; font-size: 14px; }
+.copy { font: 500 13px var(--body); background: transparent; color: var(--paper); border: 1px solid color-mix(in srgb, var(--paper) 35%, transparent); border-radius: 8px; padding: 6px 10px; cursor: pointer; flex: none; }
+.copy:hover { border-color: var(--paper); }
+.formats { margin-top: 26px; color: var(--muted); font-size: 15px; }
+.formats code { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 1px 6px; color: var(--ink); white-space: nowrap; line-height: 2.1; }
+
+/* marketplace */
+.pkgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 14px; overflow: hidden; }
+.pkg { background: var(--sheet); padding: 18px 20px; display: grid; gap: 4px; align-content: start; }
+.pkg b { font-weight: 600; }
+.pkg span { color: var(--muted); font-size: 14px; }
+.pkg .port { font-family: var(--mono); font-size: 12px; color: var(--led); }
+
+/* platforms */
+.plat { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; min-width: 620px; }
+th, td { text-align: left; padding: 12px 14px 12px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 500 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+td.y { color: var(--led); font-weight: 600; }
+td.r { color: var(--amber); }
+
+.docs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.doc { display: grid; gap: 4px; padding: 18px; border: 1px solid var(--rule); border-radius: 12px; text-decoration: none; color: var(--ink); background: var(--sheet); }
+.doc:hover { border-color: var(--led); }
+.doc span { color: var(--muted); font-size: 14px; }
+
+footer { border-top: 1px solid var(--rule); padding-block: 40px 56px; color: var(--muted); font-size: 15px; }
+footer .wrap { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; }
+footer p + p { margin-top: 8px; }
+
+@media (max-width: 900px) {
+  .hero, .intro, .apps, .install, footer .wrap { grid-template-columns: 1fr; }
+  .hero { gap: 36px; padding-block: 20px 56px; }
+  .feats { grid-template-columns: 1fr 1fr; }
+  .steps { grid-template-columns: 1fr 1fr; row-gap: 28px; }
+  .docs { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  .bar nav { display: none; }
+  .feats, .steps, .docs { grid-template-columns: 1fr; }
+  .m { grid-template-columns: 84px 1fr 44px; gap: 8px; }
+  .hero .lede { font-size: 18px; }
+  section { padding-block: 56px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .btn:hover { transform: none; } }
+</style>
+</head>
+<body>
+<header class="wrap bar">
+  <a class="brand" href="#"><img src="logo.svg" width="30" height="30" alt="">sys1</a>
+  <nav aria-label="Main">
+    <a href="#how">How it works</a>
+    <a href="#download">Download</a>
+    <a href="#marketplace">Marketplace</a>
+    <a href="https://github.com/A-Hackers-Guide/sys1/tree/main/docs">Docs</a>
+    <a href="https://github.com/A-Hackers-Guide/sys1">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <p class="label">Free · open source · public domain</p>
+      <h1 style="margin-top:16px">Your computers are idle most of the day. <em>Pool them.</em></h1>
+      <p class="lede">sys1 joins the spare power of every machine you have into one cloud for websites, media servers, backups and AI. You won't notice it running.</p>
+      <div class="cta">
+        <a class="btn solid" href="#download">Download</a>
+        <a class="btn" href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/GETTING-STARTED.md">Get started</a>
+      </div>
+      <div class="facts">
+        <span><b>2</b> apps</span>
+        <span><b>21</b> OS/CPU builds</span>
+        <span><b>0</b> accounts, ads or tracking</span>
+      </div>
+    </div>
+
+    <figure class="rack" aria-label="Example pool of five machines" style="margin:0">
+      <div class="rack-head">
+        <span class="label">Example pool</span>
+        <span class="rack-total">pool is using <span id="total">0.0</span> idle cores</span>
+      </div>
+      <div class="machines" id="machines"></div>
+      <div class="legend">
+        <span><i style="background:var(--owner)"></i>Owner's own apps</span>
+        <span><i style="background:var(--led)"></i>sys1 pool work</span>
+        <span>Empty: headroom</span>
+      </div>
+    </figure>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="intro">
+        <h2>Two apps, everywhere.</h2>
+        <p>Install sys0 on every machine that lends its power. Run sys1 on the one that coordinates. The node is a client too, so one computer is already a working pool.</p>
+      </div>
+      <div class="apps">
+        <article class="app">
+          <span class="tag">sys0 · the client</span>
+          <h3>Install it, then forget it.</h3>
+          <p style="color:var(--muted)">A friendly setup wizard, then it disappears into the background.</p>
+          <ul>
+            <li>Lowest CPU and disk priority your OS offers</li>
+            <li>Takes no new work on battery or when the machine is busy</li>
+            <li>Runs apps in locked-down containers</li>
+            <li>Starts with the machine; restarted by the OS if it ever dies</li>
+          </ul>
+        </article>
+        <article class="app">
+          <span class="tag">sys1 · the node</span>
+          <h3>One dashboard for every machine.</h3>
+          <p style="color:var(--muted)">Machines, apps and the marketplace in one live view.</p>
+          <ul>
+            <li>Places each app on the machine with the most room</li>
+            <li>Moves apps when machines leave or keep crashing</li>
+            <li>Marketplace that shows only what your machines can run</li>
+            <li>Cloudflare Tunnel and GitHub Actions built in</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="intro">
+        <h2>When something breaks, it moves.</h2>
+        <p>Apps can save progress to a small checkpoint file. If a machine fails, the app carries on somewhere else from that checkpoint.</p>
+      </div>
+      <div class="steps">
+        <div class="step"><h3>It crashes</h3><p>sys0 restarts the app, waiting 0.5s, then 1s, 2s, 4s.</p></div>
+        <div class="step"><h3>Five in a row</h3><p>sys0 stops trying on this machine and sends the app's checkpoint to the node.</p></div>
+        <div class="step"><h3>It moves</h3><p>The node picks a different machine and sends it the app with the checkpoint.</p></div>
+        <div class="step"><h3>It resumes</h3><p>The app starts from its checkpoint. A machine that just goes offline is replaced within about 15 seconds.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="intro">
+        <h2>Powerful, and safe by default.</h2>
+        <p>Anyone can lend you a machine, and you can lend yours to anyone. Both sides are protected.</p>
+      </div>
+      <div class="feats">
+        <div class="feat"><h3>Your machine, your rules</h3><p>Mark a machine as yours or as shared. Shared machines only ever run sandboxed containers, and the client enforces it.</p></div>
+        <div class="feat"><h3>Nothing to impersonate</h3><p>TLS 1.3 with the node's certificate pinned in the join code. No certificate authority in the middle.</p></div>
+        <div class="feat"><h3>Signed packages</h3><p>Third-party apps need an Ed25519 signature from a key you chose to trust. Change one byte and it won't deploy.</p></div>
+        <div class="feat"><h3>Survives the power cord</h3><p>Every change is written to a checksummed, fsync'd journal before it happens. Unplug the node and it picks up where it left off.</p></div>
+        <div class="feat"><h3>A dashboard only you can open</h3><p>Bound to localhost and locked with a private key, with strict CSP and protection against CSRF and DNS rebinding.</p></div>
+        <div class="feat"><h3>Read every line</h3><p>Public domain, three small dependencies, no CGO, no telemetry. The <a href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/SECURITY-MODEL.md">security model</a> lists what's still open, too.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap">
+      <div class="intro">
+        <h2>Download</h2>
+        <p>Both apps come in every download. Each install script checks the SHA-256 checksum before installing anything. Read a script first if you like; they're short.</p>
+      </div>
+      <div class="install">
+        <div class="cmd">
+          <span class="label">Linux · macOS · BSD</span>
+          <div class="cmd-row"><pre id="c1">curl -fsSL https://a-hackers-guide.github.io/sys1/install.sh | sh</pre><button class="copy" data-copy="c1">Copy</button></div>
+        </div>
+        <div class="cmd">
+          <span class="label">Windows (PowerShell)</span>
+          <div class="cmd-row"><pre id="c2">irm https://a-hackers-guide.github.io/sys1/install.ps1 | iex</pre><button class="copy" data-copy="c2">Copy</button></div>
+        </div>
+      </div>
+      <p class="formats">
+        Or pick a file from <a href="https://github.com/A-Hackers-Guide/sys1/releases">Releases</a>:
+        <code>.zip</code> <code>.tar.gz</code> <code>.deb</code> <code>.rpm</code> <code>.apk</code> <code>.pkg.tar.zst</code> <code>.ipk</code>.
+        Coming next: <code>.pkg</code> <code>.msi</code> AppImage, Flatpak, Snap, Homebrew, winget, Scoop, AUR, Nix and more
+        (<a href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/DISTRIBUTION.md">status of each</a>).
+      </p>
+    </div>
+  </section>
+
+  <section id="marketplace">
+    <div class="wrap">
+      <div class="intro">
+        <h2>Marketplace</h2>
+        <p>Deploy in one click. The pool picks the machine. These come built in; anyone can publish signed packages.</p>
+      </div>
+      <div class="pkgs">
+        <div class="pkg"><b>Jellyfin</b><span>Movies, shows and music</span><span class="port">:8096 · GPU transcoding</span></div>
+        <div class="pkg"><b>Plex Media Server</b><span>Stream your library anywhere</span><span class="port">:32400</span></div>
+        <div class="pkg"><b>Audiobookshelf</b><span>Audiobooks and podcasts</span><span class="port">:13378</span></div>
+        <div class="pkg"><b>Ollama</b><span>Local AI models; prefers GPUs</span><span class="port">:11434</span></div>
+        <div class="pkg"><b>Syncthing</b><span>Continuous encrypted backups</span><span class="port">:8384</span></div>
+        <div class="pkg"><b>Static website</b><span>nginx, ready for your files</span><span class="port">:8080</span></div>
+        <div class="pkg"><b>Cloudflare Tunnel</b><span>Publish apps with HTTPS, no open ports</span><span class="port">outbound only</span></div>
+        <div class="pkg"><b>GitHub Actions runner</b><span>Spare capacity for your CI</span><span class="port">outbound only</span></div>
+        <div class="pkg"><b>Any container</b><span>Any image, sandboxed, no network</span><span class="port">no ports</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="intro">
+        <h2>Every OS.</h2>
+        <p>One Go codebase, no C dependencies, a single file per platform. CI builds all of these on every change.</p>
+      </div>
+      <div class="plat">
+        <table>
+          <thead><tr><th>Platform</th><th>CPUs</th><th>Client</th><th>Node</th><th>Lowest priority via</th></tr></thead>
+          <tbody>
+            <tr><td>Windows</td><td class="mono">amd64 arm64</td><td class="y">Yes</td><td class="y">Yes</td><td>Idle class + background mode</td></tr>
+            <tr><td>macOS</td><td class="mono">arm64 amd64</td><td class="y">Yes</td><td class="y">Yes</td><td>Background QoS + nice 19</td></tr>
+            <tr><td>Linux</td><td class="mono">amd64 arm64 arm 386 riscv64 ppc64le s390x mips64le</td><td class="y">Yes</td><td class="y">Yes</td><td>nice 19 + idle I/O on every thread</td></tr>
+            <tr><td>FreeBSD, OpenBSD, NetBSD, DragonFly</td><td class="mono">amd64 arm64</td><td class="y">Yes</td><td class="y">Yes</td><td>nice 19</td></tr>
+            <tr><td>Solaris, illumos, AIX</td><td class="mono">amd64 ppc64</td><td class="y">Yes</td><td class="y">Yes</td><td>nice 19</td></tr>
+            <tr><td>Android, Android TV</td><td class="mono">arm64</td><td class="y">Binary today</td><td>–</td><td>Only while charging and idle; app on the roadmap</td></tr>
+            <tr><td>iOS, Apple TV</td><td class="mono">arm64</td><td class="r">Sideload / jailbreak</td><td>–</td><td>On the roadmap</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="intro">
+        <h2>Read the docs.</h2>
+        <p>Everything is written down: how it works, what it guarantees, and what's still being built.</p>
+      </div>
+      <div class="docs">
+        <a class="doc" href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/GETTING-STARTED.md"><b>Getting started</b><span>Five minutes, start to finish</span></a>
+        <a class="doc" href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/ARCHITECTURE.md"><b>Architecture</b><span>How the pieces fit</span></a>
+        <a class="doc" href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/RELIABILITY.md"><b>Reliability</b><span>What "no data loss" means</span></a>
+        <a class="doc" href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/ROADMAP.md"><b>Roadmap</b><span>Pooled storage, AI, gaming</span></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <p><b style="color:var(--ink)">Public domain.</b> Use it, change it, sell it, close it: anything, anywhere. No warranty.</p>
+      <p>All we ask: share issues and improvements with us, and share sys1 with other people. We respect you; please respect us.</p>
+    </div>
+    <div>
+      <p><a href="https://github.com/A-Hackers-Guide/sys1">Source on GitHub</a></p>
+      <p><a href="https://github.com/A-Hackers-Guide/sys1/issues">Issues and ideas</a></p>
+      <p><a href="https://github.com/A-Hackers-Guide/sys1/security/advisories/new">Report a vulnerability</a></p>
+    </div>
+  </div>
+</footer>
+
+<script>
+// The rack: five example machines. Grey is what the owner is using; green is
+// the pool filling the gap, never more, and backing off when the owner needs it.
+(() => {
+  const rack = [
+    ["gaming-pc", 8], ["old-laptop", 4], ["mac-mini", 10], ["nas", 4], ["work-desktop", 12],
+  ].map(([name, cores]) => ({ name, cores, own: 0.2 + Math.random() * 0.4 }));
+  const host = document.getElementById("machines");
+  rack.forEach((m) => {
+    const row = document.createElement("div");
+    row.className = "m";
+    row.innerHTML = '<span class="name"></span><span class="meter"><i class="own"></i><i class="pool"></i></span><span class="pct"></span>';
+    row.querySelector(".name").textContent = m.name;
+    host.append(row);
+    m.el = row;
+  });
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function tick() {
+    let total = 0;
+    rack.forEach((m) => {
+      if (!still) m.own = Math.min(0.92, Math.max(0.04, m.own + (Math.random() - 0.5) * 0.35));
+      const pool = Math.max(0, 0.95 - m.own) * 0.9;
+      total += pool * m.cores;
+      m.el.querySelector(".own").style.width = (m.own * 100).toFixed(1) + "%";
+      m.el.querySelector(".pool").style.width = (pool * 100).toFixed(1) + "%";
+      m.el.querySelector(".pct").textContent = Math.round((m.own + pool) * 100) + "%";
+    });
+    document.getElementById("total").textContent = total.toFixed(1);
+  }
+  tick();
+  if (!still) setInterval(tick, 1800);
+
+  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+    const text = document.getElementById(b.dataset.copy).textContent;
+    try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; }
+    catch { getSelection().selectAllChildren(document.getElementById(b.dataset.copy)); b.textContent = "Press ⌘C"; }
+    setTimeout(() => (b.textContent = "Copy"), 1800);
+  }));
+})();
+</script>
+</body>
+</html>

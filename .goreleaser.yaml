@@ -1,0 +1,137 @@
+# GoReleaser builds every sys1 release: both apps, every OS and CPU, every
+# package format. Docs: https://goreleaser.com — see docs/DISTRIBUTION.md.
+version: 2
+
+project_name: sys1
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - &build
+    id: sys0
+    main: ./cmd/sys0
+    binary: sys0
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/A-Hackers-Guide/sys1/internal/version.Version={{.Version}}
+      - -X github.com/A-Hackers-Guide/sys1/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/A-Hackers-Guide/sys1/internal/version.Date={{.Date}}
+    # The same list CI cross-compiles on every push (see docs/PLATFORMS.md).
+    targets:
+      - darwin_arm64
+      - darwin_amd64
+      - windows_amd64
+      - windows_arm64
+      - linux_amd64
+      - linux_arm64
+      - linux_arm_7
+      - linux_386
+      - linux_riscv64
+      - linux_ppc64le
+      - linux_s390x
+      - linux_mips64le
+      - freebsd_amd64
+      - freebsd_arm64
+      - openbsd_amd64
+      - netbsd_amd64
+      - dragonfly_amd64
+      - solaris_amd64
+      - illumos_amd64
+      - aix_ppc64
+      - android_arm64
+  - <<: *build
+    id: sys1
+    main: ./cmd/sys1
+    binary: sys1
+
+archives:
+  - id: default
+    ids: [sys0, sys1]
+    name_template: "sys1_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - docs/GETTING-STARTED.md
+
+nfpms:
+  - id: packages
+    ids: [sys0, sys1]
+    package_name: sys1
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: A-Hackers-Guide
+    homepage: https://a-hackers-guide.github.io/sys1/
+    maintainer: A-Hackers-Guide <289517818+A-Hackers-Guide@users.noreply.github.com>
+    description: |-
+      Pool the spare capacity of every computer into one cloud.
+      sys0 is the background client; sys1 is the node and dashboard.
+    license: Unlicense
+    section: net
+    formats: [deb, rpm, apk, archlinux, ipk]
+    bindir: /usr/bin
+    contents:
+      - src: README.md
+        dst: /usr/share/doc/sys1/README.md
+      - src: LICENSE
+        dst: /usr/share/doc/sys1/LICENSE
+    scripts:
+      postinstall: packaging/postinstall.sh
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^site:", "^ci:"]
+
+release:
+  github:
+    owner: A-Hackers-Guide
+    name: sys1
+  prerelease: auto
+  footer: |
+    **Get started:** https://github.com/A-Hackers-Guide/sys1/blob/main/docs/GETTING-STARTED.md
+    Verify downloads with `checksums.txt` (SHA-256).
+
+# The publishers below need a one-time setup (a tap/bucket repository and a
+# token with access to it). Uncomment each once it exists; see
+# docs/DISTRIBUTION.md.
+#
+# homebrew_casks:
+#   - name: sys1
+#     repository: { owner: A-Hackers-Guide, name: homebrew-tap, token: "{{ .Env.TAP_TOKEN }}" }
+#     homepage: https://a-hackers-guide.github.io/sys1/
+#     description: Pool the spare capacity of every computer into one cloud
+#
+# scoops:
+#   - name: sys1
+#     repository: { owner: A-Hackers-Guide, name: scoop-bucket, token: "{{ .Env.TAP_TOKEN }}" }
+#     homepage: https://a-hackers-guide.github.io/sys1/
+#     description: Pool the spare capacity of every computer into one cloud
+#     license: Unlicense
+#
+# winget:
+#   - name: sys1
+#     publisher: A-Hackers-Guide
+#     short_description: Pool the spare capacity of every computer into one cloud
+#     license: Unlicense
+#     repository: { owner: A-Hackers-Guide, name: winget-pkgs, token: "{{ .Env.TAP_TOKEN }}", pull_request: { enabled: true, base: { owner: microsoft, name: winget-pkgs, branch: master } } }
+#
+# aurs:
+#   - name: sys1-bin
+#     homepage: https://a-hackers-guide.github.io/sys1/
+#     description: Pool the spare capacity of every computer into one cloud
+#     license: Unlicense
+#     private_key: "{{ .Env.AUR_KEY }}"
+#     git_url: ssh://aur@aur.archlinux.org/sys1-bin.git

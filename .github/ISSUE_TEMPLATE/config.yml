@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/A-Hackers-Guide/sys1/security/advisories/new
+    about: Please report security problems privately here, not as a public issue.
+  - name: Documentation
+    url: https://github.com/A-Hackers-Guide/sys1/tree/main/docs
+    about: Read the docs first; your answer may already be there.

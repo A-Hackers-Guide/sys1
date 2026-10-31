@@ -1,0 +1,23 @@
+name: Marketplace package request
+description: Suggest an app for the marketplace
+labels: [marketplace]
+body:
+  - type: input
+    id: app
+    attributes:
+      label: App name and homepage
+    validations: { required: true }
+  - type: input
+    id: image
+    attributes:
+      label: Official container image
+      placeholder: e.g. louislam/uptime-kuma:1
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it a good fit for sys1?
+  - type: textarea
+    id: needs
+    attributes:
+      label: What does it need?
+      description: Ports, storage paths, GPU, network access…

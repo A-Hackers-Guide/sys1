@@ -1,0 +1,39 @@
+name: Bug report
+description: Something doesn't work the way it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: And what did you expect to happen instead?
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we reproduce it?
+      placeholder: "1. Start the node\n2. Join a machine with…\n3. Deploy…"
+    validations: { required: true }
+  - type: dropdown
+    id: app
+    attributes:
+      label: Which app?
+      options: [sys0 (client), sys1 (node), dashboard, setup wizard, install script, a marketplace package, not sure]
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `sys0 version` / `sys1 version`
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and CPU
+      placeholder: e.g. Windows 11 x64, macOS 15 Apple Silicon, Ubuntu 24.04 arm64
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The end of sys0.log / sys1.log from the data directory (see `sys0 status`). Remove anything private.
+      render: text

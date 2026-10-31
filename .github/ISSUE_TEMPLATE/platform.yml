@@ -1,0 +1,15 @@
+name: Platform or package-manager request
+description: Bring sys1 to another OS, device or package manager
+labels: [platform, distribution]
+body:
+  - type: input
+    id: target
+    attributes:
+      label: Platform or package manager
+      placeholder: e.g. Haiku, Raspberry Pi OS, Chocolatey, Nix…
+    validations: { required: true }
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Versions, CPU types, how packages are submitted there, and whether you can help test or maintain it.

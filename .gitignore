@@ -1,0 +1,6 @@
+/dist/
+/sys0
+/sys1
+*.exe
+*.log
+.DS_Store
