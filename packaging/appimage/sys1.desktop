@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=sys1
+GenericName=Pooled cloud node
+Comment=Pool the spare power of every computer into one cloud
+Exec=AppRun
+Icon=sys1
+Terminal=true
+Categories=Network;System;

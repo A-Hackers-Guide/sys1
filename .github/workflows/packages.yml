@@ -1,0 +1,196 @@
+name: Packages
+
+# Builds the installers GoReleaser can't: a macOS .pkg, Windows .msi files,
+# AppImages, snaps and FreeBSD packages. Each one is made from the binaries
+# already in a GitHub release, then installed and run on a real machine of
+# that OS where the runner allows. The release workflow calls this with
+# publish: true; run it by hand with publish: false to test against any tag.
+on:
+  workflow_call:
+    inputs:
+      tag: { type: string, required: true }
+      publish: { type: boolean, default: true }
+  workflow_dispatch:
+    inputs:
+      tag: { description: "Release tag to package", required: true }
+      publish: { description: "Upload to the release", type: boolean, default: false }
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TAG: ${{ inputs.tag }}
+
+jobs:
+  macos-pkg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build a universal .pkg
+        run: |
+          v=${TAG#v}; echo "V=$v" >> $GITHUB_ENV
+          gh release download "$TAG" -R ${{ github.repository }} -p "sys1_${v}_darwin_*.tar.gz" -D dl
+          for a in arm64 amd64; do mkdir -p "x/$a" && tar -xzf "dl/sys1_${v}_darwin_$a.tar.gz" -C "x/$a"; done
+          mkdir -p root/usr/local/bin
+          for b in sys0 sys1; do lipo -create "x/arm64/$b" "x/amd64/$b" -output "root/usr/local/bin/$b"; done
+          lipo -info root/usr/local/bin/sys1
+          cp LICENSE packaging/macos/resources/LICENSE.txt
+          pkgbuild --root root --identifier io.github.a-hackers-guide.sys1 --version "$v" --install-location / sys1-component.pkg
+          productbuild --distribution packaging/macos/distribution.xml --resources packaging/macos/resources \
+            --package-path . "sys1_${v}_macos_universal.pkg"
+      - name: Install it and run both apps
+        run: |
+          sudo installer -pkg "sys1_${V}_macos_universal.pkg" -target /
+          /usr/local/bin/sys0 version
+          /usr/local/bin/sys1 version
+      - uses: actions/upload-artifact@v4
+        with: { name: macos-pkg, path: "*.pkg" }
+
+  windows-msi:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the .msi
+        shell: pwsh
+        run: |
+          $v = $env:TAG.TrimStart('v'); "V=$v" >> $env:GITHUB_ENV
+          $goarch = @{ x64 = 'amd64'; arm64 = 'arm64' }['${{ matrix.arch }}']
+          gh release download $env:TAG -R ${{ github.repository }} -p "sys1_${v}_windows_$goarch.zip" -D dl
+          Expand-Archive "dl/sys1_${v}_windows_$goarch.zip" -DestinationPath bin
+          Copy-Item packaging/windows/sys1.ico, packaging/windows/LICENSE.rtf bin/
+          Copy-Item LICENSE bin/LICENSE.txt
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2
+          wix build -arch ${{ matrix.arch }} -ext WixToolset.UI.wixext -d Version=$v -d Bin=bin `
+            packaging/windows/sys1.wxs -o "sys1_${v}_windows_${{ matrix.arch }}.msi"
+      - name: Install it and run both apps
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          $p = Start-Process msiexec -ArgumentList "/i sys1_$($env:V)_windows_x64.msi /qn /l*v install.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 40; throw "msiexec exit $($p.ExitCode)" }
+          & "C:\Program Files\sys1\sys0.exe" version
+          & "C:\Program Files\sys1\sys1.exe" version
+          $path = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          if ($path -notlike '*Program Files\sys1*') { throw "PATH was not updated" }
+          if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\sys1\sys1 node.lnk")) { throw "Start menu shortcut missing" }
+          $p = Start-Process msiexec -ArgumentList "/x sys1_$($env:V)_windows_x64.msi /qn" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall exit $($p.ExitCode)" }
+          if (Test-Path "C:\Program Files\sys1\sys1.exe") { throw "uninstall left files behind" }
+      - uses: actions/upload-artifact@v4
+        with: { name: "windows-msi-${{ matrix.arch }}", path: "*.msi" }
+
+  appimage:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { arch: x86_64, goarch: amd64 }
+          - { arch: aarch64, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the AppImage
+        run: |
+          v=${TAG#v}; echo "V=$v" >> $GITHUB_ENV
+          gh release download "$TAG" -R ${{ github.repository }} -p "sys1_${v}_linux_${{ matrix.goarch }}.tar.gz" -D dl
+          mkdir -p AppDir/usr/bin
+          tar -xzf dl/*.tar.gz -C AppDir/usr/bin sys0 sys1
+          cp packaging/appimage/AppRun packaging/appimage/sys1.desktop packaging/appimage/sys1.png AppDir/
+          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=${{ matrix.arch }} ./appimagetool --appimage-extract-and-run AppDir "sys1_${v}_linux_${{ matrix.arch }}.AppImage"
+      - name: Run both apps from the AppImage
+        if: matrix.arch == 'x86_64'
+        run: |
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          ./sys1_${V}_linux_x86_64.AppImage version
+          ./sys1_${V}_linux_x86_64.AppImage sys0 version
+      - uses: actions/upload-artifact@v4
+        with: { name: "appimage-${{ matrix.arch }}", path: "*.AppImage" }
+
+  snap:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack the snap
+        run: |
+          v=${TAG#v}; echo "V=$v" >> $GITHUB_ENV
+          gh release download "$TAG" -R ${{ github.repository }} -p "sys1_${v}_linux_${{ matrix.arch }}.tar.gz" -D dl
+          mkdir -p prime/bin prime/meta
+          tar -xzf dl/*.tar.gz -C prime/bin sys0 sys1
+          sed -e "s/@VERSION@/$v/" -e "s/@ARCH@/${{ matrix.arch }}/" packaging/snap/snap.yaml.in > prime/meta/snap.yaml
+          snap pack prime .
+          ls *.snap
+      - name: Install it and run both apps
+        if: matrix.arch == 'amd64'
+        run: |
+          sudo snap install --classic --dangerous ./sys1_${V}_amd64.snap
+          /snap/bin/sys1 version
+          /snap/bin/sys1.sys0 version
+      - uses: actions/upload-artifact@v4
+        with: { name: "snap-${{ matrix.arch }}", path: "*.snap" }
+
+  freebsd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch binaries
+        run: |
+          v=${TAG#v}; echo "V=$v" >> $GITHUB_ENV
+          gh release download "$TAG" -R ${{ github.repository }} -p "sys1_${v}_freebsd_*.tar.gz" -D dl
+      - name: Build .pkg, .txz and .tzst and install on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          envs: "V"
+          usesh: true
+          run: |
+            set -e
+            for a in amd64:amd64 arm64:aarch64; do
+              goarch=${a%%:*}; abiarch=${a##*:}
+              rm -rf root && mkdir -p root/usr/local/bin "x/$goarch"
+              tar -xzf "dl/sys1_${V}_freebsd_$goarch.tar.gz" -C "x/$goarch"
+              install -m 755 "x/$goarch/sys0" "x/$goarch/sys1" root/usr/local/bin/
+              sed -e "s/@VERSION@/$V/" -e "s/@ABI@/FreeBSD:14:$abiarch/" -e "s/@ARCH@/freebsd:14:$abiarch/" \
+                packaging/freebsd/MANIFEST.in > root/+MANIFEST
+              printf '/usr/local/bin/sys0\n/usr/local/bin/sys1\n' > plist
+              for f in tzst txz; do
+                rm -rf "out-$f" && mkdir "out-$f"
+                pkg create --format "$f" -M root/+MANIFEST -p plist -r root -o "out-$f"
+              done
+              cp out-tzst/*.pkg "sys1_${V}_freebsd_$goarch.pkg"
+              cp out-tzst/*.pkg "sys1_${V}_freebsd_$goarch.tzst"
+              cp out-txz/*.pkg  "sys1_${V}_freebsd_$goarch.txz"
+            done
+            ls -l sys1_*_freebsd_*
+            pkg add "./sys1_${V}_freebsd_amd64.pkg"
+            /usr/local/bin/sys0 version
+            /usr/local/bin/sys1 version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: freebsd
+          path: |
+            sys1_*_freebsd_*.pkg
+            sys1_*_freebsd_*.txz
+            sys1_*_freebsd_*.tzst
+
+  publish:
+    if: inputs.publish
+    needs: [macos-pkg, windows-msi, appimage, snap, freebsd]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Upload to the release and refresh checksums.txt
+        run: |
+          gh release upload "$TAG" -R ${{ github.repository }} --clobber out/*
+          mkdir all && gh release download "$TAG" -R ${{ github.repository }} -D all
+          (cd all && rm -f checksums.txt && sha256sum * | sort -k2) > checksums.txt
+          gh release upload "$TAG" -R ${{ github.repository }} --clobber checksums.txt
+          wc -l checksums.txt

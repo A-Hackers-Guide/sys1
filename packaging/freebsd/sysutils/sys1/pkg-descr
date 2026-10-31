@@ -1,0 +1,4 @@
+sys1 pools the spare CPU, memory, disk and GPU of many computers into one
+place to run websites, media servers, backups and AI models. It installs
+sys0, a lowest-priority background client, and sys1, the node and its
+dashboard.

@@ -86,6 +86,20 @@ nfpms:
     scripts:
       postinstall: packaging/postinstall.sh
 
+dockers_v2:
+  - id: node
+    ids: [sys0, sys1]
+    dockerfile: packaging/docker/Dockerfile
+    images: ["ghcr.io/a-hackers-guide/sys1"]
+    tags: ["{{ .Version }}", "{{ if not .Prerelease }}latest{{ end }}"]
+    platforms: [linux/amd64, linux/arm64]
+    labels:
+      org.opencontainers.image.title: sys1
+      org.opencontainers.image.description: Pool the spare power of every computer into one cloud
+      org.opencontainers.image.source: https://github.com/A-Hackers-Guide/sys1
+      org.opencontainers.image.licenses: Unlicense
+      org.opencontainers.image.version: "{{ .Version }}"
+
 checksum:
   name_template: checksums.txt
   algorithm: sha256

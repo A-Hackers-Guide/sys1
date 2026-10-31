@@ -57,6 +57,30 @@ jobs:
             echo "::endgroup::"
           done
 
+  container:
+    name: Container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build the image the way GoReleaser lays it out
+        run: |
+          mkdir -p ctx/linux/amd64
+          CGO_ENABLED=0 go build -o ctx/linux/amd64/sys0 ./cmd/sys0
+          CGO_ENABLED=0 go build -o ctx/linux/amd64/sys1 ./cmd/sys1
+          docker build --platform linux/amd64 -f packaging/docker/Dockerfile -t sys1:test ctx
+      - name: Run it and check the node answers
+        run: |
+          docker run -d --name sys1 -p 7443:7443 -p 127.0.0.1:7700:7700 sys1:test
+          for i in $(seq 1 30); do curl -skf https://127.0.0.1:7443/healthz && break; sleep 1; done
+          curl -skf https://127.0.0.1:7443/healthz | grep -qx ok
+          curl -sf -o /dev/null http://127.0.0.1:7700/
+          docker exec sys1 sys1 open | grep -q "Dashboard: http://127.0.0.1:7700/?key="
+          docker exec sys1 sys1 join-code | grep -q "^sys1-join:"
+          docker logs sys1 2>&1 | tail -5
+
   goreleaser-check:
     name: Release config
     runs-on: ubuntu-latest

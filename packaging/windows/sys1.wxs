@@ -1,0 +1,57 @@
+<!-- sys1 Windows installer (WiX v5). Built by .github/workflows/packages.yml:
+     wix build -arch x64 -ext WixToolset.UI.wixext -d Version=X.Y.Z -d Bin=<dir> sys1.wxs -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="sys1" Manufacturer="A-Hackers-Guide" Version="$(Version)"
+           UpgradeCode="6f1c2a9e-5d1b-4c57-9a0e-3b7d2f8c1a41" Scope="perMachine" Compressed="yes">
+    <SummaryInformation Description="sys1: pool the spare power of every computer into one cloud" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of sys1 is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="sys1.ico" SourceFile="$(Bin)\sys1.ico" />
+    <Property Id="ARPPRODUCTICON" Value="sys1.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://a-hackers-guide.github.io/sys1/" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/A-Hackers-Guide/sys1/issues" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="sys1" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="MenuFolder" Name="sys1" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="Binaries" Directory="INSTALLFOLDER">
+      <Component><File Source="$(Bin)\sys0.exe" KeyPath="yes" /></Component>
+      <Component><File Source="$(Bin)\sys1.exe" KeyPath="yes" /></Component>
+      <Component><File Source="$(Bin)\LICENSE.txt" KeyPath="yes" /></Component>
+      <Component Id="PathEntry" Guid="b2f0d4c1-7a3e-4e8b-9c6d-1f2e3a4b5c6d">
+        <Environment Id="PATH" Name="PATH" Value="[INSTALLFOLDER]" Permanent="no" Part="last" Action="set" System="yes" />
+        <RegistryValue Root="HKLM" Key="Software\A-Hackers-Guide\sys1" Name="path" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Start menu: the graphical setup wizard for sys0, and the node with its dashboard. -->
+    <ComponentGroup Id="Shortcuts" Directory="MenuFolder">
+      <Component Id="MenuShortcuts" Guid="9d3a7c52-1e4b-4f6a-8b2c-5e7d9a1b3c4f">
+        <Shortcut Id="SetupShortcut" Name="Join a sys1 pool (sys0 setup)" Description="Lend this PC's spare power to a pool"
+                  Target="[INSTALLFOLDER]sys0.exe" Arguments="setup" WorkingDirectory="INSTALLFOLDER" Icon="sys1.ico" />
+        <Shortcut Id="NodeShortcut" Name="sys1 node" Description="Run a pool and open its dashboard"
+                  Target="[INSTALLFOLDER]sys1.exe" WorkingDirectory="INSTALLFOLDER" Icon="sys1.ico" />
+        <RemoveFolder Id="RemoveMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKLM" Key="Software\A-Hackers-Guide\sys1" Name="shortcuts" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Remove the sys0 background service, if it was installed, before files go. -->
+    <CustomAction Id="UninstallService" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]sys0.exe&quot; uninstall" Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="UninstallService" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <Feature Id="Main" Title="sys1" Level="1">
+      <ComponentGroupRef Id="Binaries" />
+      <ComponentGroupRef Id="Shortcuts" />
+    </Feature>
+
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(Bin)\LICENSE.rtf" />
+  </Package>
+</Wix>

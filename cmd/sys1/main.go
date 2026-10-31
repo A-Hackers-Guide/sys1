@@ -42,6 +42,7 @@ Usage:
         --gui <addr>          dashboard address (default 127.0.0.1:7700)
         --public-addr <h:p>   address machines should dial (default: this machine's LAN IP)
         --no-open             do not open the dashboard in a browser
+        --foreground          stay in the foreground (for containers)
         --no-local            do not lend this machine's own capacity to the pool
         --trust-key <key>     trust marketplace packages signed by this key (repeatable)
   sys1 open                 open the dashboard of a running node
@@ -76,6 +77,7 @@ func main() {
 	gui := fs.String("gui", "127.0.0.1:7700", "dashboard address")
 	public := fs.String("public-addr", "", "address machines dial")
 	noOpen := fs.Bool("no-open", false, "do not open a browser")
+	foreground := fs.Bool("foreground", false, "run in the foreground even when no terminal is attached (containers)")
 	noLocal := fs.Bool("no-local", false, "do not lend this machine's capacity")
 	keyFile := fs.String("key", "", "signing key file")
 	verbose := fs.Bool("v", false, "verbose logging")
@@ -114,15 +116,19 @@ func main() {
 	var err error
 	switch cmd {
 	case "serve":
-		if *noOpen {
+		if *noOpen && !*foreground {
 			err = svc.RunManaged()
 			break
 		}
 		ctx, cancel := cli.SignalContext()
-		err = serve(ctx, cfg, log, false, !*noLocal)
+		err = serve(ctx, cfg, log, *noOpen, !*noLocal)
 		cancel()
 	case "open":
-		err = setup.OpenURL("http://" + *gui + "/?key=" + node.GUIKey(*dataDir))
+		// Print the link too: in a container or over SSH there is no browser.
+		url := "http://" + *gui + "/?key=" + node.GUIKey(*dataDir)
+		url = strings.Replace(url, "://0.0.0.0:", "://127.0.0.1:", 1)
+		fmt.Println("Dashboard:", url)
+		setup.OpenURL(url)
 	case "join-code":
 		err = printJoinCode(cfg)
 	case "install":

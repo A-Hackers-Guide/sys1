@@ -1,0 +1,9 @@
+#!/bin/sh
+# AppImage entry point. With no arguments it starts the sys1 node (and opens
+# its dashboard). "sys0 ..." or "sys1 ..." picks the app explicitly.
+HERE=$(dirname "$(readlink -f "$0")")
+case "${1:-}" in
+  sys0) shift; exec "$HERE/usr/bin/sys0" "$@" ;;
+  sys1) shift; exec "$HERE/usr/bin/sys1" "$@" ;;
+  *)    exec "$HERE/usr/bin/sys1" "$@" ;;
+esac

@@ -1,0 +1,18 @@
+name: sys1
+version: "@VERSION@"
+summary: Pool the spare power of every computer into one cloud
+description: |
+  sys1 pools the spare CPU, memory, disk and GPU of many computers into one
+  place to run websites, media servers, backups and AI models.
+  `sys1` runs a node and its dashboard. `sys1.sys0` is the client that lends
+  this machine's spare power to a pool (alias it: sudo snap alias sys1.sys0 sys0).
+license: Unlicense
+base: core24
+grade: stable
+confinement: classic
+architectures: [@ARCH@]
+apps:
+  sys1:
+    command: bin/sys1
+  sys0:
+    command: bin/sys0

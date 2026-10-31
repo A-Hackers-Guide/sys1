@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>sys1</title>
+    <organization>io.github.a-hackers-guide</organization>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <license file="LICENSE.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_localSystem="true"/>
+    <choices-outline>
+        <line choice="default"><line choice="sys1"/></line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="sys1" visible="false"><pkg-ref id="io.github.a-hackers-guide.sys1"/></choice>
+    <pkg-ref id="io.github.a-hackers-guide.sys1">sys1-component.pkg</pkg-ref>
+</installer-gui-script>
