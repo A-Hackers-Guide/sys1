@@ -34,7 +34,7 @@ Releases are built by [GoReleaser](https://goreleaser.com) in GitHub Actions whe
 |---|---|---|---|
 | Homebrew | macOS, Linux | ✅ | `brew install a-hackers-guide/tap/sys1`. The [tap](https://github.com/A-Hackers-Guide/homebrew-tap) rebuilds its formula from each release's checksums every hour, then installs and tests it on macOS and Linux |
 | Scoop | Windows | 🛠️ | bucket repo, GoReleaser pushes manifests |
-| winget | Windows | 🛠️ | manifests in [`packaging/winget/`](../packaging/winget/), validated and installed with the real winget client on every change; submission to `microsoft/winget-pkgs` pending |
+| winget | Windows | 🛠️ | manifests in [`packaging/winget/`](../packaging/winget/), validated and installed with the real winget client on every change; 0.1.0 [submitted](https://github.com/microsoft/winget-pkgs/pull/467326), awaiting Microsoft review. Once merged: `winget install A-Hackers-Guide.sys1` |
 | Chocolatey | Windows | 📋 | |
 | Microsoft Store | Windows | 📋 | MSIX package |
 | AUR (`sys1-bin`) | Arch | 🛠️ | GoReleaser pushes PKGBUILD |
