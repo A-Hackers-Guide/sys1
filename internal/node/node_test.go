@@ -70,6 +70,7 @@ func joinAgent(t *testing.T, ctx context.Context, n *Node, name string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	a.Sample = func(bool) protocol.Resources { return res }
 	go a.Run(ctx)
 }
 
@@ -129,7 +130,13 @@ func TestCrashLoopMovesTaskWithCheckpoint(t *testing.T) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	t.Fatal("task never finished")
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, a := range n.agents {
+		t.Logf("machine %s: online=%v idle=%.0f%% memFree=%dMB battery=%v runtimes=%v",
+			a.Name, n.online(a, time.Now()), a.Resources.CPUIdlePercent, a.Resources.MemFree>>20, a.Resources.OnBattery, a.Resources.Runtimes)
+	}
+	t.Fatalf("task never finished: state=%s attempt=%d excluded=%v message=%q", task.State, task.Attempt, task.Excluded, task.Message)
 }
 
 func TestOfflineMachineWorkMoves(t *testing.T) {
@@ -137,6 +144,7 @@ func TestOfflineMachineWorkMoves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { n.j.Close() }) // Windows cannot delete open files
 	now := time.Now()
 	res := protocol.Resources{CPUCores: 4, CPUIdlePercent: 80, MemFree: 4 << 30, Runtimes: []string{"docker"}}
 	n.agents["a"] = &Agent{ID: "a", Name: "a", Resources: res, LastSeen: now.Add(-time.Minute)}
@@ -164,6 +172,7 @@ func TestStateSurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { n2.j.Close() })
 	if len(n2.tasks) != 1 || n2.joinToken != token {
 		t.Fatalf("state lost: %d tasks, token match %v", len(n2.tasks), n2.joinToken == token)
 	}

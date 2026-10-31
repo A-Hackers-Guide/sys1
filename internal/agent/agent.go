@@ -26,11 +26,14 @@ import (
 )
 
 type Agent struct {
+	// Sample measures this machine. It defaults to the real measurement;
+	// tests replace it so they do not depend on the host's load or battery.
+	Sample func(allowExec bool) protocol.Resources
+
 	cfg     Config
 	dataDir string
 	log     *slog.Logger
 	c       *client
-	sampler *resources.Sampler
 	outbox  *journal.Journal
 
 	mu       sync.Mutex
@@ -53,11 +56,11 @@ func New(dataDir string, cfg Config, log *slog.Logger) (*Agent, error) {
 		dataDir:  dataDir,
 		log:      log,
 		c:        newClient(cfg.NodeAddr, cfg.Fingerprint),
-		sampler:  &resources.Sampler{DataDir: dataDir},
 		running:  map[string]*taskRun{},
 		tasksDir: tasksDir(dataDir),
 	}
 	a.c.auth = cfg.AgentID + "." + cfg.Secret
+	a.Sample = (&resources.Sampler{DataDir: dataDir}).Sample
 	var err error
 	a.outbox, err = journal.Open(filepath.Join(dataDir, "outbox.log"), func(b []byte) error {
 		var r protocol.Result
@@ -122,7 +125,7 @@ func (a *Agent) Run(ctx context.Context) error {
 }
 
 func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, error) {
-	res := a.sampler.Sample(a.cfg.Trust == protocol.TrustOwner)
+	res := a.Sample(a.cfg.Trust == protocol.TrustOwner)
 	a.mu.Lock()
 	a.last = res
 	req := protocol.HeartbeatRequest{Resources: res, Version: version.Version}
