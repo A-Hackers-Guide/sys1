@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 PackageIdentifier: A-Hackers-Guide.sys1
 PackageVersion: 0.1.0
 InstallerType: zip
@@ -20,4 +20,4 @@ Installers:
     InstallerUrl: https://github.com/A-Hackers-Guide/sys1/releases/download/v0.1.0/sys1_0.1.0_windows_arm64.zip
     InstallerSha256: DFEC79367569F45E11A34323CCF07DF83E9E0152C5466D722CEA2D03C9EC35DB
 ManifestType: installer
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0

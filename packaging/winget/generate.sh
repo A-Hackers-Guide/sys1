@@ -7,7 +7,7 @@
 set -eu
 REPO=A-Hackers-Guide/sys1
 ID=A-Hackers-Guide.sys1
-SCHEMA=1.6.0
+SCHEMA=1.12.0
 tag=${1:?usage: generate.sh <tag>}
 v=${tag#v}
 sums=$(curl -fsSL "https://github.com/$REPO/releases/download/$tag/checksums.txt")

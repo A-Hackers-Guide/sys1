@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
 PackageIdentifier: A-Hackers-Guide.sys1
 PackageVersion: 0.1.0
 PackageLocale: en-US
@@ -25,4 +25,4 @@ Documentations:
   - DocumentLabel: Getting started
     DocumentUrl: https://github.com/A-Hackers-Guide/sys1/blob/main/docs/GETTING-STARTED.md
 ManifestType: defaultLocale
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0
