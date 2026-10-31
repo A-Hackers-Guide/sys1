@@ -1,0 +1,45 @@
+name: winget
+
+# Validates the winget manifests in packaging/winget and installs sys1 from
+# them with the real winget client, exactly as `winget install` would.
+on:
+  push:
+    paths: ["packaging/winget/**", ".github/workflows/winget.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-install:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make sure winget is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+            Install-PackageProvider -Name NuGet -Force | Out-Null
+            Install-Module Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+            Repair-WinGetPackageManager -AllUsers -Latest
+          }
+          winget --version
+      - name: Validate and install every version
+        shell: pwsh
+        run: |
+          winget settings --enable LocalManifestFiles
+          $dirs = Get-ChildItem packaging/winget/manifests/a/A-Hackers-Guide/sys1 -Directory
+          foreach ($d in $dirs) {
+            Write-Host "== $($d.Name)"
+            winget validate --manifest $d.FullName
+            if ($LASTEXITCODE -ne 0) { throw "validation failed for $($d.Name)" }
+          }
+          $latest = $dirs | Sort-Object { [version]$_.Name } | Select-Object -Last 1
+          winget install --manifest $latest.FullName --accept-package-agreements --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "install failed" }
+      - name: Run the installed commands
+        shell: pwsh
+        run: |
+          $links = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links'
+          & "$links\sys0.exe" version
+          & "$links\sys1.exe" version
