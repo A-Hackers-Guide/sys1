@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up sys0</title>
+<link rel="stylesheet" href="setup.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="progress"><i id="bar"></i></div>
+
+    <section class="step" data-step="0">
+      <div class="hero">🌐</div>
+      <h1>Welcome to sys0</h1>
+      <p>sys0 lends this machine's <b>spare</b> power to a sys1 pool, for things like websites, media servers, backups and AI.</p>
+      <ul class="bullets">
+        <li>⚡ <b>Lowest priority, always.</b> Your apps and games come first.</li>
+        <li>🫥 <b>Invisible.</b> After setup it quietly runs in the background.</li>
+        <li>🛡️ <b>Sandboxed.</b> Work from the pool runs in locked-down containers.</li>
+        <li>💸 <b>Free and open source.</b> No accounts, no ads, no tracking.</li>
+      </ul>
+      <div id="machine" class="machine"></div>
+      <div class="actions"><button class="primary" data-next>Get started</button></div>
+    </section>
+
+    <section class="step hidden" data-step="1">
+      <h1>Connect to your node</h1>
+      <p>Open the sys1 dashboard on your node, go to <b>Add a machine</b>, and copy the join code.</p>
+      <label>Join code
+        <textarea id="code" rows="3" placeholder="sys1-join:…" spellcheck="false"></textarea>
+      </label>
+      <label>Name for this machine
+        <input id="name">
+      </label>
+      <p id="err1" class="error"></p>
+      <div class="actions"><button class="ghost" data-back>Back</button><button class="primary" data-next>Next</button></div>
+    </section>
+
+    <section class="step hidden" data-step="2">
+      <h1>Whose machine is this?</h1>
+      <div class="choices">
+        <label class="choice">
+          <input type="radio" name="trust" value="owner">
+          <span><b>🏠 Mine. I own the node too.</b><br>Allows native programs and fewer container restrictions. Only pick this if you run the node yourself.</span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="trust" value="community" checked>
+          <span><b>🤝 I'm sharing it with someone else's pool.</b><br>Only strongly sandboxed containers may run. This is the safe choice.</span>
+        </label>
+      </div>
+      <label>Most apps at once
+        <input id="max" type="range" min="1" max="16" value="4">
+        <span class="muted" id="maxv">4</span>
+      </label>
+      <div class="actions"><button class="ghost" data-back>Back</button><button class="primary" id="finish">Join the pool</button></div>
+      <p id="err2" class="error"></p>
+    </section>
+
+    <section class="step hidden" data-step="3">
+      <div class="hero spin">⏳</div>
+      <h1>Joining…</h1>
+      <p>Checking the node's identity and setting up the background service.</p>
+    </section>
+
+    <section class="step hidden" data-step="4">
+      <div class="hero">🎉</div>
+      <h1>You're in the pool!</h1>
+      <p>sys0 is now running quietly in the background and starts automatically with this machine. You can close this window.</p>
+      <p class="muted">To leave the pool later, uninstall sys0 or run <code>sys0 uninstall</code>.</p>
+    </section>
+  </div>
+  <p class="foot">sys0 <span id="ver"></span> · <a href="https://github.com/A-Hackers-Guide/sys1" target="_blank" rel="noopener">open source</a></p>
+</div>
+<script src="setup.js"></script>
+</body>
+</html>
