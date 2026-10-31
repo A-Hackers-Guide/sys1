@@ -104,15 +104,13 @@ release:
     **Get started:** https://github.com/A-Hackers-Guide/sys1/blob/main/docs/GETTING-STARTED.md
     Verify downloads with `checksums.txt` (SHA-256).
 
-# The publishers below need a one-time setup (a tap/bucket repository and a
-# token with access to it). Uncomment each once it exists; see
-# docs/DISTRIBUTION.md.
+# Homebrew: the tap at github.com/A-Hackers-Guide/homebrew-tap regenerates
+# its formula from each release's checksums every hour, so no token is
+# needed here. winget: run packaging/winget/generate.sh <tag> after a release
+# and submit the manifests (docs/DISTRIBUTION.md).
 #
-# homebrew_casks:
-#   - name: sys1
-#     repository: { owner: A-Hackers-Guide, name: homebrew-tap, token: "{{ .Env.TAP_TOKEN }}" }
-#     homepage: https://a-hackers-guide.github.io/sys1/
-#     description: Pool the spare capacity of every computer into one cloud
+# The publishers below still need a one-time setup (a repository and a
+# token with access to it). Uncomment each once it exists.
 #
 # scoops:
 #   - name: sys1
@@ -120,13 +118,6 @@ release:
 #     homepage: https://a-hackers-guide.github.io/sys1/
 #     description: Pool the spare capacity of every computer into one cloud
 #     license: Unlicense
-#
-# winget:
-#   - name: sys1
-#     publisher: A-Hackers-Guide
-#     short_description: Pool the spare capacity of every computer into one cloud
-#     license: Unlicense
-#     repository: { owner: A-Hackers-Guide, name: winget-pkgs, token: "{{ .Env.TAP_TOKEN }}", pull_request: { enabled: true, base: { owner: microsoft, name: winget-pkgs, branch: master } } }
 #
 # aurs:
 #   - name: sys1-bin

@@ -8,7 +8,13 @@ This takes about five minutes. You need:
 
 ## 1. Start the node
 
-Download `sys1` for your OS from the [Releases page](https://github.com/A-Hackers-Guide/sys1/releases) (or [build it](../README.md#install)), then run:
+Install it (this gives you both `sys1` and `sys0`):
+
+```bash
+brew install a-hackers-guide/tap/sys1          # macOS or Linux with Homebrew
+```
+
+or use the one-line installers on the [website](https://a-hackers-guide.github.io/sys1/#download), or download from the [Releases page](https://github.com/A-Hackers-Guide/sys1/releases). Then run:
 
 ```bash
 sys1
@@ -54,7 +60,7 @@ Machines outside your home network need to reach port 7443, for example through 
 
 On each machine you want to add:
 
-1. Install **sys0** (download from [Releases](https://github.com/A-Hackers-Guide/sys1/releases)).
+1. Install **sys0**: the same install as the node (`brew install a-hackers-guide/tap/sys1`, the one-line installer, or [Releases](https://github.com/A-Hackers-Guide/sys1/releases)).
 2. Run it: double-click, or run `sys0`. A setup wizard opens in your browser.
 3. Paste the **join code** from the node's dashboard (**Add a machine** tab).
 4. Choose **whose machine this is**:

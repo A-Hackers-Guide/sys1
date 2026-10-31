@@ -78,6 +78,15 @@ Full walkthrough: **[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)**.
 
 ## Install
 
+```bash
+brew install a-hackers-guide/tap/sys1                              # macOS, Linux
+curl -fsSL https://a-hackers-guide.github.io/sys1/install.sh | sh  # Linux, macOS, BSD
+```
+
+```powershell
+irm https://a-hackers-guide.github.io/sys1/install.ps1 | iex      # Windows
+```
+
 Pre-built downloads for every platform are on the **[Releases](https://github.com/A-Hackers-Guide/sys1/releases)** page. Packages for package managers are being rolled out; see [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for the status of each one.
 
 Build from source (needs [Go](https://go.dev/dl/) 1.26+):

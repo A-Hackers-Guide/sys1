@@ -117,7 +117,7 @@ section { padding-block: 72px; border-top: 1px solid var(--rule); }
 .step p { color: var(--muted); font-size: 15px; }
 
 /* install */
-.install { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.install { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .cmd { background: var(--ink); color: var(--paper); border-radius: 14px; padding: 18px 20px; display: grid; gap: 10px; min-width: 0; }
 .cmd .label { color: color-mix(in srgb, var(--paper) 60%, transparent); }
 .cmd-row { display: flex; gap: 10px; align-items: center; }
@@ -285,6 +285,10 @@ footer p + p { margin-top: 8px; }
       </div>
       <div class="install">
         <div class="cmd">
+          <span class="label">Homebrew · macOS and Linux</span>
+          <div class="cmd-row"><pre id="c0">brew install a-hackers-guide/tap/sys1</pre><button class="copy" data-copy="c0">Copy</button></div>
+        </div>
+        <div class="cmd">
           <span class="label">Linux · macOS · BSD</span>
           <div class="cmd-row"><pre id="c1">curl -fsSL https://a-hackers-guide.github.io/sys1/install.sh | sh</pre><button class="copy" data-copy="c1">Copy</button></div>
         </div>
@@ -296,7 +300,7 @@ footer p + p { margin-top: 8px; }
       <p class="formats">
         Or pick a file from <a href="https://github.com/A-Hackers-Guide/sys1/releases">Releases</a>:
         <code>.zip</code> <code>.tar.gz</code> <code>.deb</code> <code>.rpm</code> <code>.apk</code> <code>.pkg.tar.zst</code> <code>.ipk</code>.
-        Coming next: <code>.pkg</code> <code>.msi</code> AppImage, Flatpak, Snap, Homebrew, winget, Scoop, AUR, Nix and more
+        Coming next: <code>.pkg</code> <code>.msi</code> winget, AppImage, Flatpak, Snap, Scoop, AUR, Nix and more
         (<a href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/DISTRIBUTION.md">status of each</a>).
       </p>
     </div>

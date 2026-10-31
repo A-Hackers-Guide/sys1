@@ -2,6 +2,13 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- Homebrew: `brew install a-hackers-guide/tap/sys1` (macOS and Linux), via a tap that updates itself from each release.
+- winget manifests in `packaging/winget/`, validated and test-installed with the real winget client in CI.
+
 ## [0.1.0] - 2026-10-31
 
 The first release: the foundation.

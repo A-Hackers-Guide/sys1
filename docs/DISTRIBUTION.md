@@ -32,9 +32,9 @@ Releases are built by [GoReleaser](https://goreleaser.com) in GitHub Actions whe
 
 | Manager | Platforms | Status | How |
 |---|---|---|---|
-| Homebrew | macOS, Linux | 🛠️ | tap repo `A-Hackers-Guide/homebrew-tap`, GoReleaser pushes formulae |
+| Homebrew | macOS, Linux | ✅ | `brew install a-hackers-guide/tap/sys1`. The [tap](https://github.com/A-Hackers-Guide/homebrew-tap) rebuilds its formula from each release's checksums every hour, then installs and tests it on macOS and Linux |
 | Scoop | Windows | 🛠️ | bucket repo, GoReleaser pushes manifests |
-| winget | Windows | 🛠️ | GoReleaser opens manifests against `microsoft/winget-pkgs` |
+| winget | Windows | 🛠️ | manifests in [`packaging/winget/`](../packaging/winget/), validated and installed with the real winget client on every change; submission to `microsoft/winget-pkgs` pending |
 | Chocolatey | Windows | 📋 | |
 | Microsoft Store | Windows | 📋 | MSIX package |
 | AUR (`sys1-bin`) | Arch | 🛠️ | GoReleaser pushes PKGBUILD |
@@ -75,4 +75,6 @@ If you maintain packages for any of these, thank you! Open an issue and we'll su
 2. Update `CHANGELOG.md`.
 3. `git tag -a vX.Y.Z -m "sys1 vX.Y.Z" && git push origin vX.Y.Z`
 4. GitHub Actions runs GoReleaser and publishes the release.
-5. Check the release page; announce in Discussions.
+5. Homebrew updates itself within the hour (or run the tap's *Update formula* workflow).
+6. `packaging/winget/generate.sh vX.Y.Z`, commit; the winget workflow validates and test-installs it; then submit the new version folder to `microsoft/winget-pkgs`.
+7. Check the release page; announce in Discussions.
