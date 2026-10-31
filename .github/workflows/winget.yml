@@ -15,14 +15,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Make sure winget is available
+      # The runner image can lag behind; microsoft/winget-pkgs validates with
+      # the latest client, which knows the newest manifest schema.
+      - name: Install the latest winget
         shell: pwsh
         run: |
-          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-            Install-PackageProvider -Name NuGet -Force | Out-Null
-            Install-Module Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
-            Repair-WinGetPackageManager -AllUsers -Latest
-          }
+          Install-PackageProvider -Name NuGet -Force | Out-Null
+          Install-Module Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+          Repair-WinGetPackageManager -AllUsers -Latest -Force
           winget --version
       - name: Validate and install every version
         shell: pwsh
