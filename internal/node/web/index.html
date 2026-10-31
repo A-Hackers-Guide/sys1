@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sys1 node</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <img src="favicon.svg" alt="" width="32" height="32">
+    <div>
+      <h1>sys1</h1>
+      <p class="sub">Your pooled cloud · <span id="version">…</span></p>
+    </div>
+  </div>
+  <nav id="tabs" aria-label="Sections">
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="machines">Machines</button>
+    <button data-tab="apps">Apps</button>
+    <button data-tab="market">Marketplace</button>
+    <button data-tab="add">Add a machine</button>
+    <button data-tab="integrations">Integrations</button>
+  </nav>
+  <div id="live" class="live" title="Connection to the node"><span class="dot"></span><span id="live-text">Connecting</span></div>
+</header>
+
+<main>
+  <section id="locked" class="panel hidden">
+    <h2>🔒 This dashboard is locked</h2>
+    <p>Open it from the link the node printed when it started, or run this on the node's machine:</p>
+    <pre><code>sys1 open</code></pre>
+  </section>
+
+  <section id="tab-overview" class="tab">
+    <div class="stats" id="stats"></div>
+    <div class="grid2">
+      <div class="panel">
+        <h2>Pool capacity</h2>
+        <div id="capacity"></div>
+      </div>
+      <div class="panel">
+        <h2>Recent activity</h2>
+        <div id="recent" class="list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-machines" class="tab hidden">
+    <div class="section-head">
+      <h2>Machines</h2>
+      <p class="muted">Every machine running sys0 lends its spare capacity at the lowest priority, so its owner never notices.</p>
+    </div>
+    <div id="machines" class="cards"></div>
+  </section>
+
+  <section id="tab-apps" class="tab hidden">
+    <div class="section-head">
+      <h2>Apps on the pool</h2>
+      <p class="muted">If a machine crashes or goes offline, its apps move to another machine automatically.</p>
+    </div>
+    <div id="apps" class="list"></div>
+  </section>
+
+  <section id="tab-market" class="tab hidden">
+    <div class="section-head">
+      <h2>Marketplace</h2>
+      <p class="muted">Only packages that your connected machines can run are shown as available. Every package is verified before it can be deployed.</p>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div id="market" class="cards"></div>
+  </section>
+
+  <section id="tab-add" class="tab hidden">
+    <div class="panel">
+      <h2>Add a machine to the pool</h2>
+      <ol class="steps">
+        <li><b>Install sys0</b> on the other machine: download it from the <a href="https://a-hackers-guide.github.io/sys1/#download" target="_blank" rel="noopener">sys1 website</a> or your package manager.</li>
+        <li><b>Paste this join code</b> into the installer when it asks.</li>
+        <li>That's it. sys0 goes quiet and the machine appears here.</li>
+      </ol>
+      <label class="field">Join code
+        <div class="copyrow">
+          <input id="joincode" readonly>
+          <button id="copy" class="primary">Copy</button>
+        </div>
+      </label>
+      <p class="muted">Machines connect to <code id="addr"></code> and check the node's identity using fingerprint <code id="fp" class="fp"></code>, so nobody can pretend to be this node.</p>
+      <p class="muted">Command-line install: <code id="cli"></code></p>
+      <button id="rotate" class="danger ghost">Make a new join code</button>
+      <span class="muted small">Old codes stop working. Machines that already joined stay connected.</span>
+    </div>
+  </section>
+
+  <section id="tab-integrations" class="tab hidden">
+    <div class="cards">
+      <div class="card integ">
+        <div class="icon">☁️</div>
+        <h3>Cloudflare</h3>
+        <p>Publish any app on the pool to the internet with free HTTPS and no open ports, through a Cloudflare Tunnel.</p>
+        <button class="primary" data-goto="cloudflare-tunnel">Set up a tunnel</button>
+      </div>
+      <div class="card integ">
+        <div class="icon">🐙</div>
+        <h3>GitHub</h3>
+        <p>Use spare capacity as a self-hosted GitHub Actions runner for your repositories.</p>
+        <button class="primary" data-goto="github-runner">Add a runner</button>
+      </div>
+      <div class="card integ soon">
+        <div class="icon">🧩</div>
+        <h3>More on the way</h3>
+        <p>Deploy-from-GitHub, Cloudflare DNS, and others are on the roadmap. Suggest one in the issue tracker.</p>
+        <a class="button ghost" href="https://github.com/A-Hackers-Guide/sys1/issues" target="_blank" rel="noopener">Open issues</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="deploy">
+  <form method="dialog" id="deploy-form">
+    <h2 id="deploy-title"></h2>
+    <p id="deploy-desc" class="muted"></p>
+    <h3>This package will</h3>
+    <ul id="deploy-perms" class="perms"></ul>
+    <div id="deploy-inputs"></div>
+    <p id="deploy-error" class="error"></p>
+    <div class="actions">
+      <button value="cancel" class="ghost">Cancel</button>
+      <button id="deploy-go" value="default" class="primary">Deploy to the pool</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="output">
+  <form method="dialog">
+    <h2 id="output-title"></h2>
+    <pre id="output-text"></pre>
+    <div class="actions"><button class="primary">Close</button></div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>

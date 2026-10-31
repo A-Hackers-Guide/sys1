@@ -1,0 +1,10 @@
+{
+  "name": "hello",
+  "version": "1.0.0",
+  "title": "Hello, pool!",
+  "description": "A tiny test job. Prints a greeting from whichever machine the pool picks, then finishes. Deploy this first to check everything works.",
+  "category": "Getting started",
+  "icon": "👋",
+  "author": "sys1",
+  "run": {"kind": "container", "image": "busybox:1.36", "command": ["sh", "-c", "echo Hello from $(hostname) in the sys1 pool"], "network": false, "cpu": 0.1, "memoryMB": 16}
+}

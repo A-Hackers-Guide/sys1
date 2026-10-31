@@ -1,0 +1,12 @@
+{
+  "name": "cloudflare-tunnel",
+  "version": "1.0.0",
+  "title": "Cloudflare Tunnel",
+  "description": "Publish apps from the pool to the internet through Cloudflare, with no open ports and free HTTPS. Create a tunnel in the Cloudflare dashboard and paste its token.",
+  "category": "Integrations",
+  "icon": "☁️",
+  "author": "sys1",
+  "homepage": "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/",
+  "inputs": [{"name": "TUNNEL_TOKEN", "label": "Tunnel token", "secret": true}],
+  "run": {"kind": "container", "image": "cloudflare/cloudflared:latest", "command": ["tunnel", "--no-autoupdate", "run"], "env": {"TUNNEL_TOKEN": "${TUNNEL_TOKEN}"}, "network": true, "memoryMB": 128, "service": true}
+}

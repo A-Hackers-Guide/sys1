@@ -1,0 +1,12 @@
+{
+  "name": "plex",
+  "version": "1.0.0",
+  "title": "Plex Media Server",
+  "description": "Stream your media library anywhere. Opens on port 32400. Paste a claim token from plex.tv/claim to link it to your account.",
+  "category": "Media",
+  "icon": "📺",
+  "author": "sys1",
+  "homepage": "https://www.plex.tv",
+  "inputs": [{"name": "PLEX_CLAIM", "label": "Plex claim token (from plex.tv/claim)", "secret": true}],
+  "run": {"kind": "container", "image": "plexinc/pms-docker:latest", "network": true, "ports": ["32400:32400"], "volumes": ["/config", "/transcode", "/data"], "env": {"PLEX_CLAIM": "${PLEX_CLAIM}"}, "memoryMB": 2048, "gpu": true, "service": true}
+}

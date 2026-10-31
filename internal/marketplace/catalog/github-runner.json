@@ -1,0 +1,15 @@
+{
+  "name": "github-runner",
+  "version": "1.0.0",
+  "title": "GitHub Actions runner",
+  "description": "Turn spare capacity into a self-hosted GitHub Actions runner for your repository. Get a registration token from Settings, Actions, Runners in your repo.",
+  "category": "Integrations",
+  "icon": "🐙",
+  "author": "sys1",
+  "homepage": "https://docs.github.com/actions/hosting-your-own-runners",
+  "inputs": [
+    {"name": "REPO_URL", "label": "Repository URL (https://github.com/you/repo)"},
+    {"name": "RUNNER_TOKEN", "label": "Runner registration token", "secret": true}
+  ],
+  "run": {"kind": "container", "image": "myoung34/github-runner:latest", "env": {"REPO_URL": "${REPO_URL}", "RUNNER_TOKEN": "${RUNNER_TOKEN}", "RUNNER_NAME_PREFIX": "sys1", "EPHEMERAL": "true"}, "network": true, "memoryMB": 2048, "service": true}
+}

@@ -1,0 +1,11 @@
+{
+  "name": "syncthing",
+  "version": "1.0.0",
+  "title": "Syncthing backups",
+  "description": "Continuous, encrypted file sync between your devices. A simple way to keep backups on spare disk space. Web UI on port 8384.",
+  "category": "Storage & backups",
+  "icon": "🔄",
+  "author": "sys1",
+  "homepage": "https://syncthing.net",
+  "run": {"kind": "container", "image": "syncthing/syncthing:latest", "network": true, "ports": ["8384:8384", "22000:22000", "22000:22000/udp", "21027:21027/udp"], "volumes": ["/var/syncthing"], "memoryMB": 256, "service": true}
+}

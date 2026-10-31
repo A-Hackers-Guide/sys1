@@ -1,0 +1,11 @@
+{
+  "name": "audiobookshelf",
+  "version": "1.0.0",
+  "title": "Audiobookshelf",
+  "description": "Self-hosted audiobook and podcast server with apps for every phone. Opens on port 13378.",
+  "category": "Media",
+  "icon": "🎧",
+  "author": "sys1",
+  "homepage": "https://www.audiobookshelf.org",
+  "run": {"kind": "container", "image": "ghcr.io/advplyr/audiobookshelf:latest", "network": true, "ports": ["13378:80"], "volumes": ["/config", "/metadata", "/audiobooks", "/podcasts"], "memoryMB": 512, "service": true}
+}

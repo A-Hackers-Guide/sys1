@@ -1,0 +1,11 @@
+{
+  "name": "custom-container",
+  "version": "1.0.0",
+  "title": "Any container",
+  "description": "Run any container image from Docker Hub, GHCR or elsewhere on the pool. It runs sandboxed with no network access.",
+  "category": "Advanced",
+  "icon": "📦",
+  "author": "sys1",
+  "inputs": [{"name": "IMAGE", "label": "Image (for example alpine:3)", "default": "alpine:3"}],
+  "run": {"kind": "container", "image": "${IMAGE}", "network": false, "cpu": 1, "memoryMB": 512}
+}

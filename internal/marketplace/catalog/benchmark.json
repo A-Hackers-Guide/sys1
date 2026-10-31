@@ -1,0 +1,10 @@
+{
+  "name": "benchmark",
+  "version": "1.0.0",
+  "title": "Pool benchmark",
+  "description": "Measures how fast the chosen machine is with a short CPU test, then finishes. Handy for checking that low priority keeps your other apps smooth.",
+  "category": "Getting started",
+  "icon": "⚡",
+  "author": "sys1",
+  "run": {"kind": "container", "image": "busybox:1.36", "command": ["sh", "-c", "time sh -c 'i=0; while [ $i -lt 3000000 ]; do i=$((i+1)); done'"], "network": false, "cpu": 1, "memoryMB": 32}
+}

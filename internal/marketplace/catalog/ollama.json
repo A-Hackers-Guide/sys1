@@ -1,0 +1,11 @@
+{
+  "name": "ollama",
+  "version": "1.0.0",
+  "title": "Ollama (local AI)",
+  "description": "Run open AI models like Llama, Mistral and Gemma on the pool. The scheduler prefers machines with a GPU. API on port 11434.",
+  "category": "AI",
+  "icon": "🧠",
+  "author": "sys1",
+  "homepage": "https://ollama.com",
+  "run": {"kind": "container", "image": "ollama/ollama:latest", "network": true, "ports": ["11434:11434"], "volumes": ["/root/.ollama"], "memoryMB": 8192, "gpu": true, "service": true}
+}
