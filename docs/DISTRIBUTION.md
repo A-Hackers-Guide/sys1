@@ -20,26 +20,29 @@ Releases are built by [GoReleaser](https://goreleaser.com) in GitHub Actions whe
 | `.apk` | Alpine | ✅ |
 | `.pkg.tar.zst` | Arch, Manjaro, EndeavourOS | ✅ |
 | `.ipk` | OpenWrt | ✅ |
-| `.pkg` (macOS installer) | macOS | 📋 needs Apple Developer ID for signing + notarization |
-| `.msi` | Windows | 📋 WiX config planned; needs code-signing certificate |
-| AppImage | Linux | 📋 |
-| Flatpak (`.flatpakref`) | Linux | 📋 |
-| Snap | Linux | 📋 |
-| FreeBSD `.pkg` / `.txz` / `.tzst` | FreeBSD | 📋 via a FreeBSD port (see below) |
-| Container image | anything with Docker/Podman | 🛠️ `ghcr.io/a-hackers-guide/sys1` |
+| `.pkg` (macOS installer, universal) | macOS 12+, Apple Silicon and Intel | ✅ unsigned: right-click → Open the first time. Signing + notarization needs an Apple Developer ID (#1) |
+| `.msi` | Windows x64, ARM64 | ✅ graphical installer, adds PATH and Start menu entries. Unsigned: SmartScreen asks "Run anyway". Signing needs a code-signing certificate (#2) |
+| AppImage | Linux x86-64, ARM64 | ✅ |
+| Snap (`.snap`) | Linux x86-64, ARM64 | ✅ file download: `sudo snap install --classic --dangerous sys1_*.snap`. Snap Store listing needs a store account and classic-confinement approval |
+| Flatpak (`.flatpakref`) | Linux | 📋 Flatpak is built for sandboxed desktop apps; managing Docker and a system service from inside its sandbox needs design work (#3) |
+| FreeBSD `.pkg` / `.txz` / `.tzst` | FreeBSD 13+, amd64 and ARM64 | ✅ `pkg add sys1_*_freebsd_amd64.pkg`; ports-tree Makefile in [`packaging/freebsd/`](../packaging/freebsd/) |
+| Container image | anything with Docker/Podman | ✅ `ghcr.io/a-hackers-guide/sys1` (amd64, arm64) |
+
+Every installer above is built by the [Packages workflow](../.github/workflows/packages.yml) from the release's own binaries, then installed and run on a real machine of that OS (macOS, Windows x64, Linux x86-64, FreeBSD amd64) before it is published.
 
 ### Package managers
 
 | Manager | Platforms | Status | How |
 |---|---|---|---|
 | Homebrew | macOS, Linux | ✅ | `brew install a-hackers-guide/tap/sys1`. The [tap](https://github.com/A-Hackers-Guide/homebrew-tap) rebuilds its formula from each release's checksums every hour, then installs and tests it on macOS and Linux |
-| Scoop | Windows | 🛠️ | bucket repo, GoReleaser pushes manifests |
+| Scoop | Windows | ✅ | `scoop bucket add a-hackers-guide https://github.com/A-Hackers-Guide/scoop-bucket` then `scoop install a-hackers-guide/sys1`. The [bucket](https://github.com/A-Hackers-Guide/scoop-bucket) updates itself hourly and tests the install with real Scoop |
 | winget | Windows | 🛠️ | manifests in [`packaging/winget/`](../packaging/winget/), validated and installed with the real winget client on every change; 0.1.0 [submitted](https://github.com/microsoft/winget-pkgs/pull/467326), awaiting Microsoft review. Once merged: `winget install A-Hackers-Guide.sys1` |
 | Chocolatey | Windows | 📋 | |
 | Microsoft Store | Windows | 📋 | MSIX package |
 | AUR (`sys1-bin`) | Arch | 🛠️ | GoReleaser pushes PKGBUILD |
 | npm (`sys1`) | anywhere with Node | 📋 | thin wrapper that downloads the right binary |
-| Docker Hub / GHCR | containers | 🛠️ | |
+| GHCR | containers | ✅ | `docker run ghcr.io/a-hackers-guide/sys1` |
+| Docker Hub | containers | 🛠️ | needs a Docker Hub account and token |
 | Nix / nixpkgs | NixOS, any Linux, macOS | 🤝 | nixpkgs PR by a Nix maintainer; `flake.nix` planned in repo |
 | Guix | Guix System | 🤝 | |
 | apt repository | Debian family | 📋 | signed repo on GitHub Pages |

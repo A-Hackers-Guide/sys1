@@ -2,12 +2,22 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-31
+
+Installers everywhere.
 
 ### Added
 
+- **macOS `.pkg`**: one universal installer for Apple Silicon and Intel.
+- **Windows `.msi`** for x64 and ARM64: graphical installer that adds sys0 and sys1 to PATH, adds Start menu entries ("Join a sys1 pool" opens the setup wizard), and removes the background service on uninstall.
+- **AppImage** and **snap** for Linux x86-64 and ARM64.
+- **FreeBSD** `.pkg`, `.txz` and `.tzst` for amd64 and ARM64, plus a ports-tree Makefile.
+- **Container image** `ghcr.io/a-hackers-guide/sys1` for amd64 and arm64.
+- **Scoop**: `scoop install a-hackers-guide/sys1`, via a bucket that updates itself from each release.
+- Every installer is installed and run on a real machine of its OS before it is published; `checksums.txt` covers every download.
+- `sys1 open` prints the dashboard link (useful over SSH and in containers); `sys1 serve --foreground`.
 - Homebrew: `brew install a-hackers-guide/tap/sys1` (macOS and Linux), via a tap that updates itself from each release.
-- winget manifests in `packaging/winget/`, validated and test-installed with the real winget client in CI.
+- winget manifests in `packaging/winget/`, validated and test-installed with the real winget client in CI; 0.1.0 submitted to microsoft/winget-pkgs.
 
 ## [0.1.0] - 2026-10-31
 

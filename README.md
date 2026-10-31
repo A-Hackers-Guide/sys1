@@ -84,10 +84,12 @@ curl -fsSL https://a-hackers-guide.github.io/sys1/install.sh | sh  # Linux, macO
 ```
 
 ```powershell
-irm https://a-hackers-guide.github.io/sys1/install.ps1 | iex      # Windows
+scoop bucket add a-hackers-guide https://github.com/A-Hackers-Guide/scoop-bucket
+scoop install a-hackers-guide/sys1                                 # Windows, with Scoop
+irm https://a-hackers-guide.github.io/sys1/install.ps1 | iex      # Windows, without
 ```
 
-Pre-built downloads for every platform are on the **[Releases](https://github.com/A-Hackers-Guide/sys1/releases)** page. Packages for package managers are being rolled out; see [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for the status of each one.
+Or grab an installer from **[Releases](https://github.com/A-Hackers-Guide/sys1/releases)**: macOS `.pkg`, Windows `.msi`, `.deb`, `.rpm`, `.apk`, Arch, AppImage, snap, FreeBSD `.pkg`, OpenWrt `.ipk`, and archives for 21 OS/CPU combinations. The node also runs as a container: `ghcr.io/a-hackers-guide/sys1`. Packages for package managers are being rolled out; see [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for the status of each one.
 
 Build from source (needs [Go](https://go.dev/dl/) 1.26+):
 

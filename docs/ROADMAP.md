@@ -21,16 +21,20 @@ Guiding rule for every milestone: **super powerful, super safe, super well made.
 - Hardened containers; trust levels for owner vs community machines
 - GoReleaser, CI on Linux/macOS/Windows, GitHub Pages site
 
-## 🚧 v0.2: Installers everywhere
+## ✅ v0.2: Installers everywhere (mostly done)
 
-- Signed + notarized macOS `.pkg` with the setup wizard as its last step
-- Windows `.msi` (WiX) with the setup wizard; Microsoft Store (MSIX)
-- AppImage, Flatpak, Snap
-- FreeBSD port (`.pkg`, `.txz`, `.tzst`)
-- Homebrew tap, Scoop bucket, winget, AUR, Chocolatey turned on
-- Signed apt and dnf repositories on GitHub Pages
-- Container images on GHCR and Docker Hub
-- Messages to community-maintained repositories (Nix, Guix, Gentoo, Void, Alpine, Slackware, pkgsrc, MacPorts, Fink…)
+- ✅ macOS `.pkg` (universal), Windows `.msi` (x64, ARM64), AppImage, snap, FreeBSD `.pkg`/`.txz`/`.tzst`
+- ✅ Homebrew tap and Scoop bucket that update themselves; container image on GHCR
+- ✅ winget manifests submitted to Microsoft
+- ✅ Every installer is installed and run on its OS in CI before it ships
+
+Still open. Most need an account, certificate or key only the maintainers can get:
+
+- Signed + notarized macOS `.pkg` (Apple Developer ID, #1), signed `.msi` and Microsoft Store (code-signing certificate, #2)
+- AUR and Chocolatey (#5), Docker Hub (#7): accounts and tokens
+- Signed apt and dnf repositories (a GPG signing key, #6)
+- Messages to community-maintained repositories (#8)
+- Flatpak (#3): design work, since its sandbox is built for desktop apps rather than system services
 
 ## 🗄️ v0.3: Pooled storage
 

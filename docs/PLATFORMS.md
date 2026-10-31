@@ -60,4 +60,18 @@ We don't decompile or reverse-engineer other operating systems. That's legally r
 2. **Running sys0 in a VM or container** on that system.
 3. **Community ports** using the documented [protocol](PROTOCOL.md): a client in any language just needs HTTPS and JSON.
 
+## Container
+
+The node also ships as a container image for Linux amd64 and arm64:
+
+```bash
+docker run -d --name sys1 -p 7443:7443 -p 127.0.0.1:7700:7700 \
+  -v sys1-data:/data ghcr.io/a-hackers-guide/sys1 \
+  serve --no-open --foreground --gui 0.0.0.0:7700 --public-addr <this-host-ip>:7443
+docker exec sys1 sys1 open        # prints the dashboard link
+docker exec sys1 sys1 join-code   # prints the join code
+```
+
+Keep the dashboard port bound to `127.0.0.1` as shown. Pass `--public-addr` so the join code holds an address other machines can reach, not the container's internal one.
+
 Want a platform? [Open a platform request](https://github.com/A-Hackers-Guide/sys1/issues/new/choose).
