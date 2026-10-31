@@ -20,8 +20,7 @@ jobs:
       - name: Install the latest winget
         shell: pwsh
         run: |
-          Install-PackageProvider -Name NuGet -Force | Out-Null
-          Install-Module Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+          Install-PSResource Microsoft.WinGet.Client -TrustRepository -Quiet
           Repair-WinGetPackageManager -AllUsers -Latest -Force
           winget --version
       - name: Validate and install every version
