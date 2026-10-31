@@ -157,7 +157,7 @@ jobs:
               rm -rf root && mkdir -p root/usr/local/bin "x/$goarch"
               tar -xzf "dl/sys1_${V}_freebsd_$goarch.tar.gz" -C "x/$goarch"
               install -m 755 "x/$goarch/sys0" "x/$goarch/sys1" root/usr/local/bin/
-              sed -e "s/@VERSION@/$V/" -e "s/@ABI@/FreeBSD:14:$abiarch/" -e "s/@ARCH@/freebsd:14:$abiarch/" \
+              sed -e "s/@VERSION@/$V/" -e "s/@ABI@/FreeBSD:*:$abiarch/" -e "s/@ARCH@/freebsd:*:$abiarch/" \
                 packaging/freebsd/MANIFEST.in > root/+MANIFEST
               printf '/usr/local/bin/sys0\n/usr/local/bin/sys1\n' > plist
               for f in tzst txz; do
@@ -169,6 +169,9 @@ jobs:
               cp out-txz/*.pkg  "sys1_${V}_freebsd_$goarch.txz"
             done
             ls -l sys1_*_freebsd_*
+            # Static Go binaries run on every supported FreeBSD, so the
+            # packages carry a version-wildcard ABI. Prove it installs here.
+            freebsd-version
             pkg add "./sys1_${V}_freebsd_amd64.pkg"
             /usr/local/bin/sys0 version
             /usr/local/bin/sys1 version
