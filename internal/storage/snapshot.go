@@ -3,6 +3,8 @@ package storage
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +33,7 @@ type Entry struct {
 	Chunks []string `json:"c,omitempty"` // files
 	Target string   `json:"l,omitempty"` // symlinks
 	Owner  []int    `json:"o,omitempty"` // uid, gid (Unix)
+	Hash   string   `json:"h,omitempty"` // files: SHA-256 of the plain contents
 }
 
 // Index remembers the entries of the last snapshot so unchanged files
@@ -58,6 +61,11 @@ type Result struct {
 	Files   int
 	Index   Index
 	Changed bool // anything differs from the previous index
+	// ContentHash fingerprints what the folder holds: paths, types,
+	// permissions, file contents and link targets, but not times or
+	// owners. Two machines that produce the same output get the same hash,
+	// even though their encrypted chunks differ.
+	ContentHash string
 }
 
 // Putter stores one sealed chunk somewhere durable.
@@ -96,11 +104,11 @@ func Take(dir string, key []byte, prev Index, put Putter) (Result, error) {
 			}
 		case info.Mode().IsRegular():
 			e.Type, e.Size = "f", info.Size()
-			if old, ok := prev[rel]; ok && old.Type == "f" && old.Size == e.Size && old.MTime == e.MTime && old.Mode == e.Mode && (e.Size == 0 || len(old.Chunks) > 0) {
-				e.Chunks = old.Chunks
+			if old, ok := prev[rel]; ok && old.Type == "f" && old.Size == e.Size && old.MTime == e.MTime && old.Mode == e.Mode && old.Hash != "" && (e.Size == 0 || len(old.Chunks) > 0) {
+				e.Chunks, e.Hash = old.Chunks, old.Hash
 			} else {
 				res.Changed = true
-				if e.Chunks, err = sealFile(path, key, put); err != nil {
+				if e.Chunks, e.Hash, err = sealFile(path, key, put); err != nil {
 					return fmt.Errorf("%s: %w", rel, err)
 				}
 			}
@@ -131,6 +139,11 @@ func Take(dir string, key []byte, prev Index, put Putter) (Result, error) {
 		m.Entries = append(m.Entries, e)
 	}
 	sort.Slice(m.Entries, func(i, j int) bool { return m.Entries[i].Path < m.Entries[j].Path })
+	ch := sha256.New()
+	for _, e := range m.Entries {
+		fmt.Fprintf(ch, "%s\x00%s\x00%o\x00%s\x00%s\n", e.Path, e.Type, e.Mode, e.Hash, e.Target)
+	}
+	res.ContentHash = hex.EncodeToString(ch.Sum(nil))
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	json.NewEncoder(zw).Encode(m)
@@ -161,28 +174,30 @@ func sealPut(key, plain []byte, put Putter) (string, error) {
 	return id, put(id, sealed)
 }
 
-func sealFile(path string, key []byte, put Putter) ([]string, error) {
+func sealFile(path string, key []byte, put Putter) ([]string, string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer f.Close()
 	var ids []string
+	h := sha256.New()
 	buf := make([]byte, ChunkSize)
 	for {
 		n, err := io.ReadFull(f, buf)
 		if n > 0 {
+			h.Write(buf[:n])
 			id, perr := sealPut(key, buf[:n], put)
 			if perr != nil {
-				return nil, perr
+				return nil, "", perr
 			}
 			ids = append(ids, id)
 		}
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			return ids, nil
+			return ids, hex.EncodeToString(h.Sum(nil)), nil
 		}
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 }

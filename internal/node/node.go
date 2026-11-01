@@ -414,6 +414,12 @@ func (n *Node) Deploy(pkgName string, inputs map[string]string) (*Task, error) {
 		if s, err := strconv.Atoi(inputs["SHARDS"]); err == nil && s > 0 {
 			spec.Shards = s
 		}
+		if v, err := strconv.Atoi(inputs["VERIFY"]); err == nil {
+			spec.Verify = v
+			if v <= 1 {
+				spec.Verify = 0
+			}
+		}
 		j, err := n.queueJobLocked(p.Name, p.Title, spec)
 		if err != nil {
 			return nil, err

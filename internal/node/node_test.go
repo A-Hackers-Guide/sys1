@@ -37,6 +37,15 @@ func TestMain(m *testing.M) {
 			fmt.Fprintf(c, "worker %s\n", os.Getenv("SYS1_SHARD_INDEX"))
 			c.Close()
 		}
+	case "honest-or-not":
+		// Machine "gamma" lies: it writes a different answer.
+		here, _ := os.Getwd()
+		answer := "sum of piece " + os.Getenv("SYS1_SHARD_INDEX") + " is 42"
+		if strings.Contains(filepath.ToSlash(here), "/clients/gamma/") {
+			answer = "sum of piece " + os.Getenv("SYS1_SHARD_INDEX") + " is 41"
+		}
+		os.WriteFile(filepath.Join(os.Getenv("SYS1_VOLUME_0"), "answer.txt"), []byte(answer), 0o644)
+		os.Exit(0)
 	case "head":
 		// Talks to every peer, prints what they said, and finishes.
 		var said []string
@@ -593,4 +602,73 @@ func TestGroupHeadRestartsWhenAWorkerMoves(t *testing.T) {
 	if head.State != StateWaiting || head.Attempt != attempt+1 {
 		t.Fatalf("head kept running with a stale worker: %s attempt %d", head.State, head.Attempt)
 	}
+}
+
+// TestVerifiedJob runs each piece on two machines and accepts only matching
+// output. Machine gamma lies; its answers must never be accepted, and it
+// must be marked for disagreeing.
+func TestVerifiedJob(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow end-to-end test")
+	}
+	n, ctx := startNode(t)
+	ids := map[string]string{}
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		id, _ := joinAgent(t, ctx, n, name)
+		ids[name] = id
+	}
+	exe, _ := os.Executable()
+	n.mu.Lock()
+	j, err := n.queueJobLocked("test", "verified", protocol.TaskSpec{
+		Kind: protocol.KindExec, Command: []string{exe, "-test.run=^$"}, OS: []string{"any"},
+		Env: map[string]string{"SYS1_TEST_HELPER": "honest-or-not"}, Volumes: []string{"/out"}, Shards: 4, Verify: 2,
+	})
+	n.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, n, 120*time.Second, "every piece to be verified", func() bool {
+		p := n.progressLocked(j)
+		return p.Done+p.Failed == 4
+	})
+	n.mu.Lock()
+	p := n.progressLocked(j)
+	gammaRan := false
+	for _, c := range j.Children {
+		if tk := n.tasks[c]; tk.AgentID == ids["gamma"] && tk.State == StateDone {
+			gammaRan = true
+		}
+	}
+	disagreed := n.agents[ids["gamma"]].Disagreed
+	honest := n.agents[ids["alpha"]].Disagreed + n.agents[ids["beta"]].Disagreed
+	n.mu.Unlock()
+	if p.Done != 4 {
+		t.Fatalf("progress %+v, rejected %v", p, j.Rejected)
+	}
+	if gammaRan && disagreed == 0 {
+		t.Fatal("gamma's wrong answers went unnoticed")
+	}
+	if honest != 0 {
+		t.Fatalf("honest machines marked as disagreeing %d times", honest)
+	}
+
+	dest := filepath.Join(t.TempDir(), "results")
+	if _, err := n.CollectJob(j.ID, ids["alpha"], dest); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, n, 60*time.Second, "results to be restored", func() bool {
+		for _, r := range n.pool.restores {
+			if r.State == "pending" {
+				return false
+			}
+		}
+		return true
+	})
+	for i := 0; i < 4; i++ {
+		got, _ := os.ReadFile(filepath.Join(dest, fmt.Sprintf("shard-%04d", i), "vol0", "answer.txt"))
+		if want := fmt.Sprintf("sum of piece %d is 42", i); string(got) != want {
+			t.Fatalf("piece %d accepted %q, want %q", i, got, want)
+		}
+	}
+	t.Logf("gamma ran a piece: %v, disagreements recorded: %d", gammaRan, disagreed)
 }

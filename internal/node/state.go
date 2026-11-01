@@ -38,6 +38,9 @@ type Agent struct {
 	Resources  protocol.Resources     `json:"resources"`
 	LastSeen   time.Time              `json:"-"`
 	Storage    protocol.StorageReport `json:"-"`
+	// Disagreed counts verified pieces where this machine's output didn't
+	// match what other machines produced.
+	Disagreed int `json:"disagreed,omitempty"`
 }
 
 type Task struct {
@@ -57,8 +60,12 @@ type Task struct {
 	SnapshotAt time.Time         `json:"snapshotAt,omitempty"`
 	Parent     string            `json:"parent,omitempty"` // the batch job or group this task belongs to
 	Shard      int               `json:"shard,omitempty"`
-	Created    time.Time         `json:"created"`
-	Updated    time.Time         `json:"updated"`
+	Replica    int               `json:"replica,omitempty"`
+	// Tasks with the same SpreadKey never share a machine (a group's
+	// members, a verified piece's replicas).
+	SpreadKey string    `json:"spreadKey,omitempty"`
+	Created   time.Time `json:"created"`
+	Updated   time.Time `json:"updated"`
 }
 
 func (t *Task) excludes(agentID string) bool {

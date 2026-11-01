@@ -172,6 +172,24 @@ func TestSnapshotRoundTrip(t *testing.T) {
 		t.Fatalf("snapshot after restore changed=%v err=%v", res3.Changed, err)
 	}
 
+	// Same contents, different times and keys: same content hash.
+	other := t.TempDir()
+	write(t, filepath.Join(other, "a.txt"), "alpha")
+	write(t, filepath.Join(other, "dir/b.txt"), "bravo")
+	write(t, filepath.Join(other, "empty"), "")
+	os.WriteFile(filepath.Join(other, "dir/big.bin"), big, 0o600)
+	if runtime.GOOS != "windows" {
+		os.Symlink("a.txt", filepath.Join(other, "link"))
+	}
+	twin, err := Take(other, DeriveKey(NewPoolKey(), "task:u"), nil, newMem().put)
+	if err != nil || twin.ContentHash != res.ContentHash {
+		t.Fatalf("identical folders hash differently: %s vs %s (%v)", twin.ContentHash, res.ContentHash, err)
+	}
+	write(t, filepath.Join(other, "a.txt"), "ALPHA")
+	if changed, _ := Take(other, key, nil, newMem().put); changed.ContentHash == res.ContentHash {
+		t.Fatal("different contents hash the same")
+	}
+
 	// A wrong key cannot read the snapshot.
 	if _, err := Restore(t.TempDir(), res.Root, DeriveKey(NewPoolKey(), "x"), pool.get, true); err == nil {
 		t.Fatal("restored with the wrong key")

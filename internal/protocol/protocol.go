@@ -142,6 +142,7 @@ type TaskSpec struct {
 	OwnerOnly       bool     `json:"ownerOnly,omitempty"` // only on machines whose owner said "mine" (e.g. unauthenticated network services)
 	OS              []string `json:"os,omitempty"`        // exec only: OSes the program runs on
 	Shards          int      `json:"shards,omitempty"`    // a batch job of this many pieces (see docs/BATCH.md)
+	Verify          int      `json:"verify,omitempty"`    // batch: run each piece on this many machines and accept matching output
 	// Group makes this spec the head of a group of workers on other
 	// machines (see docs/BATCH.md).
 	Group *GroupSpec `json:"group,omitempty"`
@@ -201,6 +202,9 @@ func (s TaskSpec) Validate() error {
 	}
 	if s.Shards < 0 {
 		return errors.New("shards cannot be negative")
+	}
+	if s.Verify != 0 && (s.Verify < 2 || s.Verify > 5 || s.Shards == 0 || len(s.Volumes) == 0) {
+		return errors.New("verify is 2 to 5, for batch jobs whose pieces write output to a volume")
 	}
 	if g := s.Group; g != nil {
 		if s.Shards > 0 {
@@ -315,6 +319,9 @@ type SnapshotReport struct {
 	Chunks  []string `json:"chunks"`
 	Size    int64    `json:"size"`
 	Files   int      `json:"files"`
+	// ContentHash fingerprints the plain contents, so results from
+	// different machines can be compared without decrypting anything.
+	ContentHash string `json:"contentHash,omitempty"`
 }
 
 // BackupJob asks an owner machine to keep a folder backed up to the pool.

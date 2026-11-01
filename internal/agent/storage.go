@@ -262,7 +262,7 @@ func (s *agentStorage) snapshot(ctx context.Context, dir, owner string, attempt 
 			return prevRoot, fmt.Errorf("uploading snapshot: %w", err)
 		}
 	}
-	rep := protocol.SnapshotReport{Owner: owner, Attempt: attempt, Root: res.Root, Chunks: res.Chunks, Size: res.Size, Files: res.Files}
+	rep := protocol.SnapshotReport{Owner: owner, Attempt: attempt, Root: res.Root, Chunks: res.Chunks, Size: res.Size, Files: res.Files, ContentHash: res.ContentHash}
 	if err := s.a.c.post(ctx, "/api/v1/snapshot", rep, nil); err != nil {
 		var se *StatusError
 		if errors.As(err, &se) && se.Code == http.StatusConflict {

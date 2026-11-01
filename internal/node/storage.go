@@ -51,6 +51,8 @@ type Snapshot struct {
 	Files   int       `json:"files"`
 	Created time.Time `json:"created"`
 	Machine string    `json:"machine"`
+	Agent   string    `json:"agent,omitempty"`
+	Content string    `json:"content,omitempty"` // plaintext content hash
 }
 
 type Backup struct {
@@ -623,7 +625,7 @@ func (n *Node) handleSnapshot(w http.ResponseWriter, r *http.Request, a *Agent) 
 		json.NewEncoder(w).Encode(map[string]any{"error": "chunks missing from the pool", "missing": missing})
 		return
 	}
-	s := &Snapshot{Root: rep.Root, Owner: rep.Owner, Chunks: rep.Chunks, Size: rep.Size, Files: rep.Files, Created: now, Machine: a.Name}
+	s := &Snapshot{Root: rep.Root, Owner: rep.Owner, Chunks: rep.Chunks, Size: rep.Size, Files: rep.Files, Created: now, Machine: a.Name, Agent: a.ID, Content: rep.ContentHash}
 	n.pool.snapshots[s.Root] = s
 	n.persistLocked(event{Snapshot: s})
 	if task != nil {

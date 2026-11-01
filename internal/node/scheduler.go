@@ -77,6 +77,7 @@ func score(a *Agent, s protocol.TaskSpec, load int) float64 {
 // the best machine available.
 func (n *Node) scheduleLocked(now time.Time) {
 	n.groupsLocked(now)
+	n.verifyLocked(now)
 	load := map[string]int{}
 	for _, t := range n.tasks {
 		if t.AgentID == "" || terminal(t.State) {
@@ -99,7 +100,7 @@ func (n *Node) scheduleLocked(now time.Time) {
 		load[t.AgentID]++
 	}
 
-	busy := n.groupBusyLocked()
+	busy := n.spreadBusyLocked()
 	for _, t := range n.tasks {
 		if t.State != StateQueued {
 			continue
@@ -107,7 +108,10 @@ func (n *Node) scheduleLocked(now time.Time) {
 		var best *Agent
 		bestScore := -1.0
 		for _, a := range n.agents {
-			if !n.online(a, now) || t.excludes(a.ID) || !canRun(a, t.Spec) || busy[t.Parent][a.ID] {
+			if !n.online(a, now) || t.excludes(a.ID) || !canRun(a, t.Spec) || busy[t.SpreadKey][a.ID] {
+				continue
+			}
+			if j := n.jobs[t.Parent]; j != nil && j.Verify > 0 && a.Disagreed >= disagreeLimit {
 				continue
 			}
 			if sc := score(a, t.Spec, load[a.ID]); sc > bestScore {
@@ -123,8 +127,11 @@ func (n *Node) scheduleLocked(now time.Time) {
 		}
 		t.State, t.AgentID, t.Message = StateAssigned, best.ID, "Sent to "+best.Name
 		load[best.ID]++
-		if busy[t.Parent] != nil {
-			busy[t.Parent][best.ID] = true
+		if t.SpreadKey != "" {
+			if busy[t.SpreadKey] == nil {
+				busy[t.SpreadKey] = map[string]bool{}
+			}
+			busy[t.SpreadKey][best.ID] = true
 		}
 		n.saveTaskLocked(t)
 	}

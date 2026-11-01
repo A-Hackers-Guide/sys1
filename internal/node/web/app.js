@@ -144,7 +144,9 @@ function renderMachines(s) {
         h("span", { class: "chip " + (a.trust === "owner" ? "ok" : "") }, a.trust === "owner" ? "Your machine" : "Community machine"),
         (r.runtimes || []).map((x) => h("span", { class: "chip" }, x)),
         (r.gpus || []).map((g) => h("span", { class: "chip accent" }, "GPU: " + g)),
-        r.onBattery && h("span", { class: "chip warn" }, "On battery, paused")),
+        r.onBattery && h("span", { class: "chip warn" }, "On battery, paused"),
+        a.disagreed > 0 && h("span", { class: "chip " + (a.disagreed >= 3 ? "bad" : "warn"), title: "Times this machine's output didn't match other machines on verified work" },
+          `Disagreed ${a.disagreed}×` + (a.disagreed >= 3 ? ", kept off verified work" : ""))),
       meter("CPU idle", r.cpuIdlePercent || 0, 100, `${cpuFree}% of ${r.cpuCores || 0} cores`),
       meter("Memory free", r.memFree, r.memTotal, `${bytes(r.memFree)} / ${bytes(r.memTotal)}`),
       meter("Disk free", r.diskFree, r.diskTotal, `${bytes(r.diskFree)} / ${bytes(r.diskTotal)}`),
@@ -202,7 +204,7 @@ function jobRow(j) {
       h("div", { class: "title" }, j.title),
       h("div", { class: "msg" }, group
         ? `Group of ${j.shards} worker${j.shards === 1 ? "" : "s"} plus a head, on ${j.machines} machine${j.machines === 1 ? "" : "s"}`
-        : `${j.shards} pieces · ${p.Running} running on ${j.machines} machine${j.machines === 1 ? "" : "s"} · ${p.Waiting} waiting` + (p.Saved ? ` · ${p.Saved} with saved output` : "")),
+        : `${j.shards} pieces` + (j.verify ? ` · each checked on ${j.verify} machines` : "") + ` · ${p.Running} running on ${j.machines} machine${j.machines === 1 ? "" : "s"} · ${p.Waiting} waiting` + (p.Saved ? ` · ${p.Saved} with saved output` : "")),
       !group && h("div", { class: "bar small" }, h("i", { style: { width: (p.Total ? (p.Done / p.Total) * 100 : 0) + "%" } }))),
     h("span", { class: "chip " + cls }, label),
     !group && p.Saved > 0 && h("button", { class: "ghost", onclick: () => openCollect(j) }, "Collect results"),

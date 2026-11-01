@@ -9,7 +9,8 @@
   "inputs": [
     {"name": "IMAGE", "label": "Container image", "default": "alpine:3"},
     {"name": "COMMAND", "label": "Command each piece runs (sh)", "default": "echo \"piece $SYS1_SHARD_INDEX of $SYS1_SHARD_COUNT ran on $(hostname)\" > /output/result.txt"},
-    {"name": "SHARDS", "label": "Number of pieces", "default": "8"}
+    {"name": "SHARDS", "label": "Number of pieces", "default": "8"},
+    {"name": "VERIFY", "label": "Check each piece on this many machines (1 = no check; use 2+ on shared machines)", "default": "1"}
   ],
   "run": {
     "kind": "container",

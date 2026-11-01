@@ -175,6 +175,7 @@ type agentView struct {
 	Joined    time.Time          `json:"joined"`
 	Tasks     int                `json:"tasks"`
 	Resources protocol.Resources `json:"resources"`
+	Disagreed int                `json:"disagreed"`
 }
 
 type taskView struct {
@@ -253,7 +254,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, a := range n.agents {
 		av := agentView{ID: a.ID, Name: a.Name, Trust: a.Trust, Online: n.online(a, now), Local: a.Local, Version: a.Version,
-			LastSeen: a.LastSeen, Joined: a.Joined, Tasks: load[a.ID], Resources: a.Resources}
+			LastSeen: a.LastSeen, Joined: a.Joined, Tasks: load[a.ID], Resources: a.Resources, Disagreed: a.Disagreed}
 		out.Agents = append(out.Agents, av)
 		out.Totals.Machines++
 		if !av.Online {
