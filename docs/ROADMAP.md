@@ -81,16 +81,19 @@ Next: GPU passthrough for VMs, Windows guests, and a CI test of game streaming o
 
 Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cydia package repository.
 
-## 🩺 v0.8: Self-care
+## ✅ v0.8: Self-care (done)
 
-- Automatic updates, verified twice: the SHA-256 in `checksums.txt` and a Sigstore signature from this repository's release workflow; rollback if a new version crashes on start (#30)
-- Crash reports scrubbed of anything personal, grouped on the node, and filed as GitHub issues through a small intake service; never a token inside an app (#31)
+- ✅ Automatic updates, verified twice: the SHA-256 in `checksums.txt` and a Sigstore signature from this repository's release workflow; rollback on a crash loop (#30)
+- ✅ Crash reports scrubbed of anything personal, grouped on the node, filed as GitHub issues through a small intake service; never a token inside an app (#31). The intake goes online once a maintainer deploys it.
+- ✅ A Sileo/Zebra/Cydia repository for jailbroken iPhones and iPads (#29)
+- ✅ Battery detection on the BSDs (#24)
+- ✅ Deploy from a GitHub repository, redeployed on every commit (#20, public repositories)
+- ✅ A security review of the whole project, with every finding fixed; two join codes; an upgrade test from every earlier release
 
 ## 📦 v0.9: Package repositories
 
-- A Sileo/Cydia repository for jailbroken iPhones and iPads (#29), F-Droid
-- Signed apt and dnf repositories on GitHub Pages (#6)
-- Battery detection on the BSDs (#24)
+- F-Droid
+- Signed apt and dnf repositories on GitHub Pages (#6, needs the project's signing key)
 
 ## 🧱 v1.0: Stable
 
@@ -100,7 +103,7 @@ Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cy
 
 ## 🧩 v1.1: Integrations
 
-- Deploy from a GitHub repository (#20)
+- Private repositories and zero-downtime redeploys for Deploy from GitHub
 - Cloudflare tunnels and DNS from the dashboard (#21)
 - Webhooks and a node API with scoped tokens
 

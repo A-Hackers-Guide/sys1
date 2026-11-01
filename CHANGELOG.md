@@ -2,7 +2,9 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [0.8.0] - 2026-11-01
+
+Self-care: automatic updates, crash reports, a security review.
 
 ### Added
 
