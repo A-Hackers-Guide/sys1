@@ -103,6 +103,7 @@ Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cy
 
 ## 🧱 v1.0: Stable
 
+- A standby node: a second machine (one you choose, or one sys1 picks) takes over while the node is down and hands back when it returns, with the pool's machines as tie-breakers so there's never two nodes in charge (#39)
 - Protocol and data formats frozen, with upgrade tests from every earlier release
 - A full security review of the client sandbox, TLS pinning and pooled-storage crypto
 - Every doc checked against the code
