@@ -184,15 +184,21 @@ jobs:
             sys1_*_freebsd_*.txz
             sys1_*_freebsd_*.tzst
 
+  android:
+    uses: ./.github/workflows/android.yml
+    with:
+      version: ${{ inputs.tag }}
+
   publish:
     if: inputs.publish
-    needs: [macos-pkg, windows-msi, appimage, snap, freebsd]
+    needs: [macos-pkg, windows-msi, appimage, snap, freebsd, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
       - name: Upload to the release and refresh checksums.txt
         run: |
+          rm -f out/sys0-x86_64 # the Android emulator test's helper, not a download
           gh release upload "$TAG" -R ${{ github.repository }} --clobber out/*
           mkdir all && gh release download "$TAG" -R ${{ github.repository }} -D all
           (cd all && rm -f checksums.txt && sha256sum * | sort -k2) > checksums.txt

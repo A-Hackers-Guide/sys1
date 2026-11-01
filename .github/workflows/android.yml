@@ -33,14 +33,14 @@ jobs:
         run: |
           LD="-s -w -X github.com/A-Hackers-Guide/sys1/internal/version.Version=${VERSION#v}"
           L=android/app/src/main/jniLibs
-          mkdir -p $L/arm64-v8a $L/x86_64 $L/armeabi-v7a dist
+          mkdir -p $L/arm64-v8a $L/x86_64 $L/armeabi-v7a dist test
           # arm64 builds for Android directly; x86-64 and ARMv7 would need
           # C linking for Android, so they are static Linux builds, which
           # Android's kernel runs the same way.
           CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -trimpath -ldflags "$LD" -o $L/arm64-v8a/libsys0.so ./cmd/sys0
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LD" -o $L/x86_64/libsys0.so ./cmd/sys0
           CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "$LD" -o $L/armeabi-v7a/libsys0.so ./cmd/sys0
-          cp $L/x86_64/libsys0.so dist/sys0-x86_64
+          cp $L/x86_64/libsys0.so test/sys0-x86_64
       - name: Signing key
         env:
           STABLE_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -76,6 +76,8 @@ jobs:
           unzip -l dist/*magisk.zip
       - uses: actions/upload-artifact@v4
         with: { name: android, path: dist/ }
+      - uses: actions/upload-artifact@v4
+        with: { name: android-test, path: test/ }
 
   emulator:
     needs: build
@@ -87,6 +89,8 @@ jobs:
           go-version-file: go.mod
       - uses: actions/download-artifact@v4
         with: { name: android, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: android-test, path: test }
       - name: Allow KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -109,7 +113,7 @@ jobs:
             adb install -r dist/*_android.apk
             adb shell am start -W -n io.github.ahackersguide.sys0/.MainActivity
             sleep 5 && adb shell pidof io.github.ahackersguide.sys0
-            adb push dist/sys0-x86_64 /data/local/tmp/sys0 && adb shell chmod 755 /data/local/tmp/sys0
+            adb push test/sys0-x86_64 /data/local/tmp/sys0 && adb shell chmod 755 /data/local/tmp/sys0
             adb shell /data/local/tmp/sys0 version
             adb shell /data/local/tmp/sys0 join "$JOIN" --name android-emulator --trust community --storage-gb 1 --no-service --data /data/local/tmp/s
             adb shell "nohup /data/local/tmp/sys0 run --data /data/local/tmp/s >/dev/null 2>&1 &"
