@@ -79,18 +79,22 @@ const (
 
 // TaskSpec describes what to run. Marketplace packages carry one.
 type TaskSpec struct {
-	Kind     Kind              `json:"kind"`
-	Image    string            `json:"image,omitempty"`
-	Command  []string          `json:"command,omitempty"`
-	Env      map[string]string `json:"env,omitempty"`
-	Ports    []string          `json:"ports,omitempty"`   // "host:container", e.g. "8096:8096"
-	Volumes  []string          `json:"volumes,omitempty"` // container paths kept on the machine's disk
-	Network  bool              `json:"network"`
-	CPU      float64           `json:"cpu,omitempty"`      // cores, 0 = no limit
-	MemoryMB int               `json:"memoryMB,omitempty"` // 0 = no limit
-	GPU      bool              `json:"gpu,omitempty"`      // prefer and use a GPU when available
-	Service  bool              `json:"service,omitempty"`  // runs forever and is restarted on exit
-	OS       []string          `json:"os,omitempty"`       // exec only: OSes the program runs on
+	Kind    Kind              `json:"kind"`
+	Image   string            `json:"image,omitempty"`
+	Command []string          `json:"command,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+	Ports   []string          `json:"ports,omitempty"`   // "host:container", e.g. "8096:8096"
+	Volumes []string          `json:"volumes,omitempty"` // app data, snapshotted to pooled storage so it moves with the app
+	// LocalVolumes stay on the machine the app runs on: caches, and big
+	// media libraries you already keep somewhere. Containers only.
+	LocalVolumes    []string `json:"localVolumes,omitempty"`
+	SnapshotSeconds int      `json:"snapshotSeconds,omitempty"` // how often volumes are snapshotted (default 60)
+	Network         bool     `json:"network"`
+	CPU             float64  `json:"cpu,omitempty"`      // cores, 0 = no limit
+	MemoryMB        int      `json:"memoryMB,omitempty"` // 0 = no limit
+	GPU             bool     `json:"gpu,omitempty"`      // prefer and use a GPU when available
+	Service         bool     `json:"service,omitempty"`  // runs forever and is restarted on exit
+	OS              []string `json:"os,omitempty"`       // exec only: OSes the program runs on
 }
 
 var (
@@ -112,8 +116,8 @@ func (s TaskSpec) Validate() error {
 		if len(s.Command) == 0 {
 			return errors.New("exec task needs a command")
 		}
-		if len(s.Ports) > 0 || len(s.Volumes) > 0 {
-			return errors.New("ports and volumes apply to containers only")
+		if len(s.Ports) > 0 || len(s.LocalVolumes) > 0 {
+			return errors.New("ports and local volumes apply to containers only")
 		}
 	default:
 		return fmt.Errorf("unknown kind %q", s.Kind)
@@ -126,10 +130,18 @@ func (s TaskSpec) Validate() error {
 	if len(s.Ports) > 0 && !s.Network {
 		return errors.New("ports need network permission")
 	}
-	for _, v := range s.Volumes {
+	seen := map[string]bool{}
+	for _, v := range append(append([]string(nil), s.Volumes...), s.LocalVolumes...) {
 		if !pathRe.MatchString(v) || strings.Contains(v, "..") || strings.Contains(v, ":") {
 			return fmt.Errorf("invalid volume path %q", v)
 		}
+		if seen[v] {
+			return fmt.Errorf("volume %q listed twice", v)
+		}
+		seen[v] = true
+	}
+	if s.SnapshotSeconds < 0 {
+		return errors.New("snapshotSeconds cannot be negative")
 	}
 	for k := range s.Env {
 		if !envRe.MatchString(k) {
@@ -148,6 +160,10 @@ type Task struct {
 	Attempt    int      `json:"attempt"`
 	Spec       TaskSpec `json:"spec"`
 	Checkpoint []byte   `json:"checkpoint,omitempty"` // fast-saved state from a previous machine
+	// For apps with volumes: the key for this app's data, and the latest
+	// snapshot to restore before starting (empty for a fresh app).
+	DataKey []byte `json:"dataKey,omitempty"`
+	Restore string `json:"restore,omitempty"`
 }
 
 type RegisterRequest struct {
@@ -174,11 +190,73 @@ type HeartbeatRequest struct {
 	Resources Resources     `json:"resources"`
 	Running   []RunningTask `json:"running"`
 	Version   string        `json:"version"`
+	Storage   StorageReport `json:"storage"`
 }
 
 type HeartbeatResponse struct {
 	Assign []Task   `json:"assign,omitempty"`
 	Cancel []string `json:"cancel,omitempty"`
+
+	// Pooled storage work for this machine.
+	Fetch     []string     `json:"fetch,omitempty"`  // download these chunks from the node and keep them
+	Upload    []string     `json:"upload,omitempty"` // send these chunks to the node
+	Drop      []string     `json:"drop,omitempty"`   // delete these chunks
+	Inventory bool         `json:"inventory,omitempty"`
+	Backups   []BackupJob  `json:"backups,omitempty"`
+	Restores  []RestoreJob `json:"restores,omitempty"`
+	// Hurry asks for the next heartbeat in about a second, because
+	// storage work is in flight.
+	Hurry bool `json:"hurry,omitempty"`
+}
+
+// StorageReport is a machine's share of pooled storage, plus the outcome of
+// storage work since its last heartbeat.
+type StorageReport struct {
+	QuotaBytes int64    `json:"quotaBytes"`
+	UsedBytes  int64    `json:"usedBytes"`
+	Chunks     int      `json:"chunks"`
+	Stored     []string `json:"stored,omitempty"`  // fetched and kept
+	Missing    []string `json:"missing,omitempty"` // asked to upload, but not here (or corrupt)
+}
+
+// Inventory lists every chunk a machine holds.
+type Inventory struct {
+	Chunks []string `json:"chunks"`
+}
+
+// SnapshotReport tells the node a snapshot was taken. Every chunk in it
+// has been uploaded already, or was already in the pool.
+type SnapshotReport struct {
+	Owner   string   `json:"owner"` // "task:<id>" or "backup:<id>"
+	Attempt int      `json:"attempt,omitempty"`
+	Root    string   `json:"root"`
+	Chunks  []string `json:"chunks"`
+	Size    int64    `json:"size"`
+	Files   int      `json:"files"`
+}
+
+// BackupJob asks an owner machine to keep a folder backed up to the pool.
+type BackupJob struct {
+	ID              string `json:"id"`
+	Path            string `json:"path"`
+	IntervalSeconds int    `json:"intervalSeconds"`
+	Key             []byte `json:"key"`
+	RunNow          int    `json:"runNow"` // increases when the user clicks "Back up now"
+}
+
+// RestoreJob asks an owner machine to restore a snapshot into a new folder.
+type RestoreJob struct {
+	ID   string `json:"id"`
+	Root string `json:"root"`
+	Dest string `json:"dest"`
+	Key  []byte `json:"key"`
+}
+
+type RestoreResult struct {
+	ID      string `json:"id"`
+	OK      bool   `json:"ok"`
+	Message string `json:"message,omitempty"`
+	Files   int    `json:"files,omitempty"`
 }
 
 // Outcome is how a task attempt ended on a client.

@@ -58,6 +58,30 @@ func (c *client) post(ctx context.Context, path string, in, out any) error {
 	return json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(out)
 }
 
+// raw sends a request with an opaque body and returns the response body.
+func (c *client) raw(ctx context.Context, method, path string, body []byte, max int64) ([]byte, error) {
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rd)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("Authorization", "Bearer "+c.auth)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, &StatusError{Code: resp.StatusCode, Msg: string(bytes.TrimSpace(msg))}
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, max))
+}
+
 type StatusError struct {
 	Code int
 	Msg  string
@@ -76,5 +100,5 @@ func Register(ctx context.Context, code protocol.JoinCode, name string, trust pr
 	if err != nil {
 		return Config{}, err
 	}
-	return Config{NodeAddr: code.Addr, Fingerprint: code.Fingerprint, AgentID: out.AgentID, Secret: out.Secret, Name: name, Trust: trust, MaxTasks: 4}, nil
+	return Config{NodeAddr: code.Addr, Fingerprint: code.Fingerprint, AgentID: out.AgentID, Secret: out.Secret, Name: name, Trust: trust, MaxTasks: 4, StorageGB: DefaultStorageGB}, nil
 }

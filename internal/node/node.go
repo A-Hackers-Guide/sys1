@@ -39,6 +39,10 @@ type Config struct {
 	PublicAddr  string   // host:port clients use; guessed when empty
 	GUIAddr     string   // dashboard, e.g. "127.0.0.1:7700"
 	TrustedKeys []string // marketplace signing keys the owner trusts
+	// Pooled storage: copies kept of app data (default 3), and how much
+	// disk the node may use to pass chunks between machines (default 4 GiB).
+	Copies       int
+	StagingBytes int64
 }
 
 type Node struct {
@@ -58,12 +62,16 @@ type Node struct {
 	localToken string
 	catalog    *marketplace.Catalog
 	started    time.Time
+	pool       *pool
 }
 
 func New(cfg Config, log *slog.Logger) (*Node, error) {
 	n := &Node{cfg: cfg, log: log, agents: map[string]*Agent{}, tasks: map[string]*Task{}, started: time.Now()}
 	var err error
 	if n.cert, err = tlsutil.LoadOrCreate(cfg.DataDir); err != nil {
+		return nil, err
+	}
+	if err := n.initPool(cfg); err != nil {
 		return nil, err
 	}
 	n.fp = tlsutil.Fingerprint(n.cert.Certificate[0])
@@ -202,6 +210,7 @@ func (n *Node) loop(ctx context.Context) {
 		case now := <-t.C:
 			n.mu.Lock()
 			n.scheduleLocked(now)
+			n.maintainPoolLocked(now)
 			n.mu.Unlock()
 		}
 	}
@@ -214,6 +223,11 @@ func (n *Node) apiHandler() http.Handler {
 	mux.HandleFunc("POST /api/v1/register", n.handleRegister)
 	mux.HandleFunc("POST /api/v1/heartbeat", n.withAgent(n.handleHeartbeat))
 	mux.HandleFunc("POST /api/v1/result", n.withAgent(n.handleResult))
+	mux.HandleFunc("PUT /api/v1/chunks/{id}", n.withAgent(n.handleChunkPut))
+	mux.HandleFunc("GET /api/v1/chunks/{id}", n.withAgent(n.handleChunkGet))
+	mux.HandleFunc("POST /api/v1/inventory", n.withAgent(n.handleInventory))
+	mux.HandleFunc("POST /api/v1/snapshot", n.withAgent(n.handleSnapshot))
+	mux.HandleFunc("POST /api/v1/restore-result", n.withAgent(n.handleRestoreResult))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 	return mux
 }
@@ -315,7 +329,11 @@ func (n *Node) handleHeartbeat(w http.ResponseWriter, r *http.Request, a *Agent)
 				t.State, t.Message = StateRunning, "Running on "+a.Name
 				n.saveTaskLocked(t)
 			} else {
-				resp.Assign = append(resp.Assign, protocol.Task{ID: t.ID, Attempt: t.Attempt, Spec: t.Spec, Checkpoint: t.Checkpoint})
+				pt := protocol.Task{ID: t.ID, Attempt: t.Attempt, Spec: t.Spec, Checkpoint: t.Checkpoint}
+				if len(t.Spec.Volumes) > 0 {
+					pt.DataKey, pt.Restore = n.dataKey("task:"+t.ID), t.Snapshot
+				}
+				resp.Assign = append(resp.Assign, pt)
 			}
 		case StateRunning:
 			// The machine forgot it (it restarted) without reporting a
@@ -330,6 +348,7 @@ func (n *Node) handleHeartbeat(w http.ResponseWriter, r *http.Request, a *Agent)
 			}
 		}
 	}
+	n.storageHeartbeatLocked(a, req.Storage, &resp, now)
 	writeJSON(w, resp)
 }
 
@@ -401,6 +420,7 @@ func (n *Node) StopTask(id string) error {
 	case terminal(t.State):
 		delete(n.tasks, id)
 		n.persistLocked(event{DelTask: id})
+		n.deleteSnapshotsLocked("task:"+id, 0)
 	case t.AgentID == "":
 		t.State, t.Message = StateStopped, "Stopped"
 		n.saveTaskLocked(t)
@@ -423,6 +443,8 @@ func (n *Node) RemoveAgent(id string) error {
 	}
 	delete(n.agents, id)
 	n.persistLocked(event{DelAgent: id})
+	delete(n.pool.held, id)
+	delete(n.pool.queue, id)
 	for _, t := range n.tasks {
 		if t.AgentID == id && !terminal(t.State) {
 			n.requeueLocked(t, "machine removed; moving it", false)

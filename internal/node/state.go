@@ -27,15 +27,16 @@ func terminal(state string) bool {
 }
 
 type Agent struct {
-	ID         string             `json:"id"`
-	Name       string             `json:"name"`
-	SecretHash string             `json:"secretHash"`
-	Trust      protocol.Trust     `json:"trust"`
-	Version    string             `json:"version"`
-	Joined     time.Time          `json:"joined"`
-	Local      bool               `json:"local,omitempty"` // the node's own built-in client
-	Resources  protocol.Resources `json:"resources"`
-	LastSeen   time.Time          `json:"-"`
+	ID         string                 `json:"id"`
+	Name       string                 `json:"name"`
+	SecretHash string                 `json:"secretHash"`
+	Trust      protocol.Trust         `json:"trust"`
+	Version    string                 `json:"version"`
+	Joined     time.Time              `json:"joined"`
+	Local      bool                   `json:"local,omitempty"` // the node's own built-in client
+	Resources  protocol.Resources     `json:"resources"`
+	LastSeen   time.Time              `json:"-"`
+	Storage    protocol.StorageReport `json:"-"`
 }
 
 type Task struct {
@@ -51,6 +52,8 @@ type Task struct {
 	Output     string            `json:"output,omitempty"`
 	ExitCode   int               `json:"exitCode"`
 	Checkpoint []byte            `json:"checkpoint,omitempty"`
+	Snapshot   string            `json:"snapshot,omitempty"` // latest volume snapshot root
+	SnapshotAt time.Time         `json:"snapshotAt,omitempty"`
 	Created    time.Time         `json:"created"`
 	Updated    time.Time         `json:"updated"`
 }
@@ -72,6 +75,12 @@ type event struct {
 	DelAgent  string `json:"delAgent,omitempty"`
 	DelTask   string `json:"delTask,omitempty"`
 	JoinToken string `json:"joinToken,omitempty"`
+
+	Snapshot    *Snapshot `json:"snapshot,omitempty"`
+	DelSnapshot string    `json:"delSnapshot,omitempty"`
+	Backup      *Backup   `json:"backup,omitempty"`
+	DelBackup   string    `json:"delBackup,omitempty"`
+	Restore     *Restore  `json:"restore,omitempty"`
 }
 
 func (n *Node) replay(b []byte) error {
@@ -90,6 +99,16 @@ func (n *Node) replay(b []byte) error {
 		delete(n.tasks, e.DelTask)
 	case e.JoinToken != "":
 		n.joinToken = e.JoinToken
+	case e.Snapshot != nil:
+		n.pool.snapshots[e.Snapshot.Root] = e.Snapshot
+	case e.DelSnapshot != "":
+		delete(n.pool.snapshots, e.DelSnapshot)
+	case e.Backup != nil:
+		n.pool.backups[e.Backup.ID] = e.Backup
+	case e.DelBackup != "":
+		delete(n.pool.backups, e.DelBackup)
+	case e.Restore != nil:
+		n.pool.restores[e.Restore.ID] = e.Restore
 	}
 	return nil
 }
@@ -119,6 +138,15 @@ func (n *Node) compactLocked() {
 	}
 	for _, t := range n.tasks {
 		add(event{Task: t})
+	}
+	for _, s := range n.pool.snapshots {
+		add(event{Snapshot: s})
+	}
+	for _, b := range n.pool.backups {
+		add(event{Backup: b})
+	}
+	for _, r := range n.pool.restores {
+		add(event{Restore: r})
 	}
 	if err := n.j.Compact(recs); err != nil {
 		n.log.Error("journal compaction failed", "err", err)

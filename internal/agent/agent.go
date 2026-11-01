@@ -35,6 +35,7 @@ type Agent struct {
 	log     *slog.Logger
 	c       *client
 	outbox  *journal.Journal
+	st      *agentStorage
 
 	mu       sync.Mutex
 	running  map[string]*taskRun
@@ -70,6 +71,10 @@ func New(dataDir string, cfg Config, log *slog.Logger) (*Agent, error) {
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+	if a.st, err = newAgentStorage(a); err != nil {
+		a.outbox.Close()
 		return nil, err
 	}
 	return a, nil
@@ -110,9 +115,13 @@ func (a *Agent) Run(ctx context.Context) error {
 		default:
 			backoff = time.Second
 			a.apply(ctx, resp)
+			a.st.apply(ctx, resp)
 			// Jitter spreads thousands of clients out so they do not all
 			// hit the node at the same instant.
 			wait = protocol.HeartbeatInterval + time.Duration(rand.Int64N(int64(time.Second))) - 500*time.Millisecond
+			if resp.Hurry {
+				wait = time.Second
+			}
 		}
 		t := time.NewTimer(wait)
 		select {
@@ -128,7 +137,7 @@ func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, erro
 	res := a.Sample(a.cfg.Trust == protocol.TrustOwner)
 	a.mu.Lock()
 	a.last = res
-	req := protocol.HeartbeatRequest{Resources: res, Version: version.Version}
+	req := protocol.HeartbeatRequest{Resources: res, Version: version.Version, Storage: a.st.report()}
 	for id, r := range a.running {
 		req.Running = append(req.Running, protocol.RunningTask{ID: id, Attempt: r.attempt})
 	}

@@ -19,7 +19,13 @@ type Config struct {
 	Name        string         `json:"name"`
 	Trust       protocol.Trust `json:"trust"`
 	MaxTasks    int            `json:"maxTasks"`
+	// StorageGB is the disk space this machine lends to pooled storage.
+	// sys0 also always leaves 5 GB of the disk free.
+	StorageGB int `json:"storageGB"`
 }
+
+// DefaultStorageGB is lent when the owner has not chosen a size.
+const DefaultStorageGB = 10
 
 var ErrNotConfigured = errors.New("sys0 is not set up yet: run `sys0 setup` (or `sys0 join <code>`)")
 
@@ -42,6 +48,12 @@ func LoadConfig(dataDir string) (Config, error) {
 	}
 	if c.MaxTasks <= 0 {
 		c.MaxTasks = 4
+	}
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(b, &raw) == nil {
+		if _, set := raw["storageGB"]; !set {
+			c.StorageGB = DefaultStorageGB // configs from before pooled storage
+		}
 	}
 	return c, nil
 }
