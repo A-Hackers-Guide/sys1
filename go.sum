@@ -1,7 +1,3 @@
-github.com/armon/go-metrics v0.4.1 h1:hR91U9KYmb6bLBYLQjyM+3j+rcd/UhE+G78SFnF8gJA=
-github.com/armon/go-metrics v0.4.1/go.mod h1:E6amYzXo6aW1tqzoZGT755KkbgrJsSdpwZ+3JqfkOG4=
-github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
-github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx27Ps=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/ebitengine/purego v0.11.1 h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=
@@ -20,8 +16,6 @@ github.com/hashicorp/go-immutable-radix v1.3.1 h1:DKHmCUm2hRBK510BaiZlwvpD40f8bJ
 github.com/hashicorp/go-immutable-radix v1.3.1/go.mod h1:0y9vanUI8NX6FsYoO3zeMjhV/C5i9g4Q3DwcSNZ4P60=
 github.com/hashicorp/go-metrics v0.7.0 h1:lLWieZTcbzZT+rY0zrqKbyryXG8RIajdUjmM0+R79eg=
 github.com/hashicorp/go-metrics v0.7.0/go.mod h1:8T/Es8FPTfQvY7azBPGyrwXwwg7mbA9/TmQ1/lWfxb4=
-github.com/hashicorp/go-msgpack v0.5.5 h1:i9R9JSrqIz0QVLz3sz+i3YJdT7TTSLcfLLzJi9aZTuI=
-github.com/hashicorp/go-msgpack v0.5.5/go.mod h1:ahLV/dePpqEmjfWmKiqvPkv/twdG7iPBM1vqhUKIvfM=
 github.com/hashicorp/go-msgpack/v2 v2.1.5 h1:Ue879bPnutj/hXfmUk6s/jtIK90XxgiUIcXRl656T44=
 github.com/hashicorp/go-msgpack/v2 v2.1.5/go.mod h1:bjCsRXpZ7NsJdk45PoCQnzRGDaK8TKm5ZnDI/9y3J4M=
 github.com/hashicorp/go-uuid v1.0.0 h1:RS8zrF7PhGwyNPOtxSClXXj9HA8feRnJzgnI1RJCSnM=
@@ -31,10 +25,6 @@ github.com/hashicorp/golang-lru v1.0.2 h1:dV3g9Z/unq5DpblPpw+Oqcv4dU/1omnb4Ok8iP
 github.com/hashicorp/golang-lru v1.0.2/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
 github.com/hashicorp/raft v1.8.0 h1:YbfecBcuTar/LNFEDfVTpqu9Aw+MczTk7MYczvy+62k=
 github.com/hashicorp/raft v1.8.0/go.mod h1:agL5fncrpEsbxr5P5KOd2srskDwPY18opjXN5x0661s=
-github.com/hashicorp/raft-boltdb v0.0.0-20230125174641-2a8082862702 h1:RLKEcCuKcZ+qp2VlaaZsYZfLOmIiuJNpEi48Rl8u9cQ=
-github.com/hashicorp/raft-boltdb v0.0.0-20230125174641-2a8082862702/go.mod h1:nTakvJ4XYq45UXtn0DbwR4aU9ZdjlnIenpbs6Cd+FM0=
-github.com/hashicorp/raft-boltdb/v2 v2.4.2 h1:r2RRgZ6ajT+VH8/9yC5mfoKAlt3KrYiUDhfbUSmaoTs=
-github.com/hashicorp/raft-boltdb/v2 v2.4.2/go.mod h1:+wvKK1thWEqM7amY1MXjtQpkm+b9KNUXks0fcus5ZGU=
 github.com/huin/goupnp v1.3.0 h1:UvLUlWDNpoUdYzb2TCn+MuTWtcjXKSza2n6CBdQ0xXc=
 github.com/huin/goupnp v1.3.0/go.mod h1:gnGPsThkYa7bFi/KWmEysQRf48l2dvR5bxr2OFckNX8=
 github.com/jackpal/gateway v1.2.0 h1:euPRe4t7JfTaqC5Lr78HXl2wSHo54XndTtiAcIxkb5g=
@@ -70,8 +60,6 @@ github.com/tklauser/numcpus v0.12.0 h1:NR85qdvHA9pFse3x3weVZ0r0ST8R6l5RHbZrlRaqo
 github.com/tklauser/numcpus v0.12.0/go.mod h1:ABHeXzJnr/qqwguhClkZKT1/8VABcYrsyUiUGobwWJg=
 github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo0=
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
-go.etcd.io/bbolt v1.4.1 h1:5mOV+HWjIPLEAlUGMsveaUvK2+byZMFOzojoi7bh7uI=
-go.etcd.io/bbolt v1.4.1/go.mod h1:c8zu2BnXWTu2XM4XcICtbGSl9cFwsXtcf9zLt2OncM8=
 go.yaml.in/yaml/v3 v3.0.5 h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=
 go.yaml.in/yaml/v3 v3.0.5/go.mod h1:HVTZu1O7/Vkt2N+BFy8Zza+lnLsABggaTM2ZpNIGuKg=
 golang.org/x/net v0.50.0 h1:ucWh9eiCGyDR3vtzso0WMQinm2Dnt8cFMuQa9K33J60=

@@ -220,6 +220,7 @@ func (n *Node) Serve(ctx context.Context, ready func(apiAddr, guiAddr string)) e
 	defer cancel()
 	api.Shutdown(sctx)
 	gui.Shutdown(sctx)
+	n.stopCluster()
 	n.mu.Lock()
 	m := n.mapping
 	n.mu.Unlock()

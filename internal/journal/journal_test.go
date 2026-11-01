@@ -74,6 +74,19 @@ func TestCorruptRecordStopsReplay(t *testing.T) {
 	}
 }
 
+func TestAppendMany(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "j.log")
+	j, _ := Open(path, nil)
+	j.Append([]byte("one"))
+	if err := j.AppendMany([][]byte{[]byte("two"), []byte("three")}); err != nil {
+		t.Fatal(err)
+	}
+	j.Close()
+	if got := readAll(t, path); len(got) != 3 || got[2] != "three" {
+		t.Fatalf("got %v", got)
+	}
+}
+
 func TestCompact(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "j.log")
 	j, _ := Open(path, nil)

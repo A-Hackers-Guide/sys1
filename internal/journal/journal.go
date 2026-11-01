@@ -125,6 +125,32 @@ func (j *Journal) Append(p []byte) error {
 	return nil
 }
 
+// AppendMany durably writes several records with a single fsync. Either
+// all of them survive a crash or, if it strikes mid-write, those before
+// the torn one do.
+func (j *Journal) AppendMany(ps [][]byte) error {
+	var buf []byte
+	for _, p := range ps {
+		if len(p) > MaxRecord {
+			return ErrTooLarge
+		}
+		buf = append(buf, frame(p)...)
+	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.f == nil {
+		return ErrClosed
+	}
+	if _, err := j.f.Write(buf); err != nil {
+		return err
+	}
+	if err := j.f.Sync(); err != nil {
+		return err
+	}
+	j.n += len(ps)
+	return nil
+}
+
 // Len reports how many records the journal holds.
 func (j *Journal) Len() int {
 	j.mu.Lock()

@@ -22,7 +22,6 @@ import (
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
 	"github.com/A-Hackers-Guide/sys1/internal/tlsutil"
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
 // Clusters: two or more nodes keep the same state with Raft, so the pool
@@ -52,6 +51,7 @@ type cluster struct {
 	active  atomic.Bool // leader, and caught up: may change state
 	members map[string]Member
 	token   string
+	store   *raftStore
 }
 
 // entry wraps an event in the Raft log.
@@ -105,7 +105,7 @@ func (n *Node) startCluster(ctx context.Context, bootstrap bool) error {
 	trans := raft.NewNetworkTransport(stream, 3, 10*time.Second, io.Discard)
 	dir := filepath.Join(cfg.DataDir, "raft")
 	os.MkdirAll(dir, 0o700)
-	store, err := raftboltdb.NewBoltStore(filepath.Join(dir, "raft.db"))
+	store, err := openRaftStore(filepath.Join(dir, "raft.journal"))
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (n *Node) startCluster(ctx context.Context, bootstrap bool) error {
 	}
 	b := make([]byte, 8)
 	rand.Read(b)
-	c := &cluster{id: nodeID(cfg.DataDir), epoch: hex.EncodeToString(b), members: map[string]Member{}}
+	c := &cluster{id: nodeID(cfg.DataDir), epoch: hex.EncodeToString(b), members: map[string]Member{}, store: store}
 	rc := raft.DefaultConfig()
 	rc.LocalID = raft.ServerID(c.id)
 	rc.LogOutput = io.Discard
@@ -160,7 +160,6 @@ func (n *Node) watchLeadership(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			c.active.Store(false)
-			c.r.Shutdown().Error()
 			return
 		case lead := <-ch:
 			if !lead {
@@ -618,4 +617,13 @@ func (s *tlsStream) Addr() net.Addr { return s.addr }
 
 func (s *tlsStream) Dial(addr raft.ServerAddress, timeout time.Duration) (net.Conn, error) {
 	return tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", string(addr), s.config())
+}
+
+// stopCluster shuts Raft down and closes its store.
+func (n *Node) stopCluster() {
+	if c := n.cl; c != nil && c.r != nil {
+		c.active.Store(false)
+		c.r.Shutdown().Error()
+		c.store.Close()
+	}
 }
