@@ -1,0 +1,2 @@
+noVNC v1.7.0 (https://github.com/novnc/noVNC/releases/tag/v1.7.0): core/ and vendor/pako/, unmodified.
+Licensed under the MPL 2.0 (see LICENSE.txt); bundled here to show VM screens in the dashboard.

@@ -3,6 +3,8 @@ package agent
 import (
 	"bufio"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -103,10 +105,8 @@ func TestVMBoots(t *testing.T) {
 	if p == nil || p.screen == nil || len(p.screen.Password) != 8 {
 		t.Fatalf("no screen: %+v", p)
 	}
-	if c, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(p.screen.Port), 2*time.Second); err != nil {
-		t.Fatalf("screen not listening: %v", err)
-	} else {
-		c.Close()
+	if err := checkVNCWebSocket("127.0.0.1:" + strconv.Itoa(p.screen.Port)); err != nil {
+		t.Fatalf("screen: %v", err)
 	}
 	resume := p.pause()
 	resume()
@@ -118,4 +118,68 @@ func TestVMBoots(t *testing.T) {
 		t.Fatal("VM didn't stop")
 	}
 	t.Logf("console tail:\n%s", out.String()[max(0, len(out.String())-600):])
+}
+
+// checkVNCWebSocket does what noVNC does first: a WebSocket upgrade, then
+// the VNC handshake, and expects password authentication to be required.
+func checkVNCWebSocket(addr string) error {
+	c, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(10 * time.Second))
+	fmt.Fprintf(c, "GET / HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"+
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: binary\r\n\r\n", addr)
+	r := bufio.NewReader(c)
+	status, _ := r.ReadString('\n')
+	if !strings.Contains(status, "101") {
+		return fmt.Errorf("websocket upgrade refused: %q", status)
+	}
+	for line, _ := r.ReadString('\n'); line != "\r\n" && line != ""; line, _ = r.ReadString('\n') {
+	}
+	readFrame := func() ([]byte, error) {
+		h := make([]byte, 2)
+		if _, err := io.ReadFull(r, h); err != nil {
+			return nil, err
+		}
+		n := int(h[1] & 0x7f)
+		if n == 126 {
+			ext := make([]byte, 2)
+			io.ReadFull(r, ext)
+			n = int(ext[0])<<8 | int(ext[1])
+		}
+		b := make([]byte, n)
+		_, err := io.ReadFull(r, b)
+		return b, err
+	}
+	writeFrame := func(p []byte) {
+		mask := []byte{1, 2, 3, 4}
+		f := []byte{0x82, byte(0x80 | len(p))}
+		f = append(f, mask...)
+		for i, x := range p {
+			f = append(f, x^mask[i%4])
+		}
+		c.Write(f)
+	}
+	ver, err := readFrame()
+	if err != nil || !strings.HasPrefix(string(ver), "RFB 003.") {
+		return fmt.Errorf("no VNC greeting: %q %v", ver, err)
+	}
+	writeFrame([]byte("RFB 003.008\n"))
+	sec, err := readFrame()
+	if err != nil || len(sec) < 2 {
+		return fmt.Errorf("no security types: %v", err)
+	}
+	for _, t := range sec[1:] {
+		if t == 1 {
+			return errors.New("the screen allows access without a password")
+		}
+	}
+	for _, t := range sec[1:] {
+		if t == 2 {
+			return nil // VNC password authentication
+		}
+	}
+	return fmt.Errorf("unexpected security types %v", sec[1:])
 }

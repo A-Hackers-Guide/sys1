@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sort"
@@ -700,4 +701,26 @@ func TestClientFailsOverBetweenAddresses(t *testing.T) {
 		ag := n.agents[cfg.AgentID]
 		return ag != nil && n.online(ag, time.Now()) && ag.Version == "dev"
 	})
+}
+
+func TestScreenPageMayConnectToMachines(t *testing.T) {
+	n, err := New(Config{DataDir: t.TempDir(), ListenAddr: "127.0.0.1:0"}, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { n.j.Close() })
+	h := n.guiHandler("127.0.0.1:7700")
+	csp := func(path string) string {
+		req := httptest.NewRequest("GET", path, nil)
+		req.Host = "127.0.0.1:7700"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Header().Get("Content-Security-Policy")
+	}
+	if !strings.Contains(csp("/screen.html"), "connect-src 'self' ws: wss:") {
+		t.Fatal("the screen page can't open WebSockets to machines")
+	}
+	if strings.Contains(csp("/"), "ws:") {
+		t.Fatal("the dashboard itself shouldn't allow WebSockets elsewhere")
+	}
 }

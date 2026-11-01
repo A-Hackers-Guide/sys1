@@ -175,6 +175,7 @@ function taskRow(t) {
     t.pooledData && h("span", { class: "chip " + (t.dataSavedAt && t.dataSavedAt > "2000" ? "ok" : "warn"), title: "This app's data is copied to the pool, so it moves with the app" },
       t.dataSavedAt && t.dataSavedAt > "2000" ? "data saved " + ago(t.dataSavedAt) : "data not saved yet"),
     h("span", { class: "chip " + cls }, label),
+    t.screen && h("a", { class: "button primary", href: "/screen.html?task=" + encodeURIComponent(t.id), target: "_blank", rel: "noopener" }, "Open screen"),
     t.output && h("button", { class: "ghost", onclick: () => showOutput(t) }, "Output"),
     h("button", {
       class: "ghost" + (["done", "stopped", "failed"].includes(t.state) ? "" : " danger"),

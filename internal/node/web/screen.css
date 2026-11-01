@@ -1,0 +1,4 @@
+.screen-page { display: flex; flex-direction: column; height: 100vh; margin: 0; }
+.screen-bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.screen-bar .grow { flex: 1; }
+#screen { flex: 1; min-height: 0; background: #000; }
