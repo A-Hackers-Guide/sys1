@@ -91,7 +91,9 @@ func TestStore(t *testing.T) {
 		t.Fatalf("usage after reopen: %d bytes %d chunks", used, n)
 	}
 	// Bit rot is detected and the bad copy removed.
-	os.WriteFile(s.path(id), append([]byte{1}, sealed[1:]...), 0o600)
+	// Flip the first byte (it's random, so setting it to a fixed value
+	// would leave it unchanged one time in 256).
+	os.WriteFile(s.path(id), append([]byte{sealed[0] ^ 0xff}, sealed[1:]...), 0o600)
 	if _, err := s.Get(id); !errors.Is(err, ErrCorrupt) || s.Has(id) {
 		t.Fatal("corrupt chunk served or kept")
 	}
