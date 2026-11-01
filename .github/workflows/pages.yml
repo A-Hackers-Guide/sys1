@@ -47,7 +47,7 @@ jobs:
               -o APT::FTPArchive::Release::Suite="stable" -o APT::FTPArchive::Release::Codename="ios" \
               -o APT::FTPArchive::Release::Architectures="iphoneos-arm64" -o APT::FTPArchive::Release::Components="main" \
               -o APT::FTPArchive::Release::Description="sys1: lend your device's spare power to a pool" \
-              release . > Release
+              release . > ../Release.tmp && mv ../Release.tmp Release
             cat Packages
           fi
       - uses: actions/configure-pages@v5
