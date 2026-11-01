@@ -4,3 +4,7 @@
 *.exe
 *.log
 .DS_Store
+/android/app/src/main/jniLibs/
+/android/.gradle/
+/android/app/build/
+/android/build/

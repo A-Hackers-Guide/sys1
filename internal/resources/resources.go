@@ -30,6 +30,9 @@ type Sampler struct {
 
 func (s *Sampler) Sample(allowExec bool) protocol.Resources {
 	r := protocol.Resources{OS: runtime.GOOS, Arch: runtime.GOARCH, CPUCores: runtime.NumCPU()}
+	if r.OS == "linux" && isAndroid() {
+		r.OS = "android" // a static Linux build running on Android
+	}
 	r.Hostname, _ = os.Hostname()
 	if p, err := cpu.Percent(0, false); err == nil && len(p) > 0 {
 		r.CPUIdlePercent = 100 - p[0]
@@ -101,4 +104,10 @@ func lanAddr() string {
 	}
 	defer c.Close()
 	return c.LocalAddr().(*net.UDPAddr).IP.String()
+}
+
+// isAndroid recognizes Android by files every Android system has.
+func isAndroid() bool {
+	_, err := os.Stat("/system/build.prop")
+	return err == nil
 }

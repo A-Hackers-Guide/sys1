@@ -1,0 +1,120 @@
+name: Android
+
+# Builds the sys0 Android app (APK) and the Magisk module for rooted
+# devices, then proves them on an Android emulator: the app installs and
+# launches, and sys0 runs on Android and joins a real node.
+on:
+  push:
+    paths: ["android/**", "packaging/magisk/**", ".github/workflows/android.yml", "internal/**", "cmd/sys0/**"]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version: { type: string, required: true }
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ inputs.version || 'dev' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.11.1" }
+      - name: Build sys0 for every Android CPU
+        run: |
+          LD="-s -w -X github.com/A-Hackers-Guide/sys1/internal/version.Version=${VERSION#v}"
+          L=android/app/src/main/jniLibs
+          mkdir -p $L/arm64-v8a $L/x86_64 $L/armeabi-v7a dist
+          # arm64 builds for Android directly; x86-64 and ARMv7 would need
+          # C linking for Android, so they are static Linux builds, which
+          # Android's kernel runs the same way.
+          CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -trimpath -ldflags "$LD" -o $L/arm64-v8a/libsys0.so ./cmd/sys0
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LD" -o $L/x86_64/libsys0.so ./cmd/sys0
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "$LD" -o $L/armeabi-v7a/libsys0.so ./cmd/sys0
+          cp $L/x86_64/libsys0.so dist/sys0-x86_64
+      - name: Signing key
+        env:
+          STABLE_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STABLE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          # A stable key (repository secret) lets installed apps update in
+          # place. Without one, each build gets its own key.
+          if [ -n "$STABLE_KEY" ]; then
+            echo "$STABLE_KEY" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "SYS1_KEYSTORE_PASSWORD=$STABLE_PASS" >> $GITHUB_ENV
+          else
+            PASS=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.jks" -storepass "$PASS" -keypass "$PASS" \
+              -alias sys0 -dname "CN=sys0, O=A-Hackers-Guide" -keyalg RSA -keysize 3072 -validity 10000 -noprompt
+            echo "SYS1_KEYSTORE_PASSWORD=$PASS" >> $GITHUB_ENV
+          fi
+          echo "SYS1_KEYSTORE=$RUNNER_TEMP/release.jks" >> $GITHUB_ENV
+          echo "SYS1_KEY_ALIAS=sys0" >> $GITHUB_ENV
+      - name: Build the APK
+        run: |
+          gradle -p android assembleRelease -Psys1Version="${VERSION#v}" -Psys1VersionCode=${{ github.run_number }} --no-daemon -q
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/sys1_${VERSION#v}_android.apk"
+          unzip -l dist/*.apk | grep libsys0.so
+      - name: Build the Magisk module
+        run: |
+          m=$(mktemp -d)
+          cp -R packaging/magisk/. "$m/"
+          mkdir -p "$m/system/bin"
+          cp android/app/src/main/jniLibs/arm64-v8a/libsys0.so "$m/system/bin/sys0"
+          sed -e "s/@VERSION@/${VERSION#v}/" -e "s/@VERSIONCODE@/${{ github.run_number }}/" packaging/magisk/module.prop.in > "$m/module.prop"
+          rm "$m/module.prop.in"
+          (cd "$m" && zip -qr - .) > "dist/sys1_${VERSION#v}_android_magisk.zip"
+          unzip -l dist/*magisk.zip
+      - uses: actions/upload-artifact@v4
+        with: { name: android, path: dist/ }
+
+  emulator:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with: { name: android, path: dist }
+      - name: Allow KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Start a node for the emulator to join
+        run: |
+          go build -o sys1-node ./cmd/sys1
+          # The emulator reaches this machine as 10.0.2.2.
+          ./sys1-node serve --no-open --foreground --no-local --data node --listen 0.0.0.0:7443 --gui 127.0.0.1:7700 --public-addr 10.0.2.2:7443 &
+          for i in $(seq 1 30); do [ -s node/join-code.txt ] && break; sleep 1; done
+          echo "JOIN=$(cat node/join-code.txt)" >> $GITHUB_ENV
+      - name: Install, launch, and run sys0 on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install -r dist/*_android.apk
+            adb shell am start -W -n io.github.ahackersguide.sys0/.MainActivity
+            sleep 5 && adb shell pidof io.github.ahackersguide.sys0
+            adb push dist/sys0-x86_64 /data/local/tmp/sys0 && adb shell chmod 755 /data/local/tmp/sys0
+            adb shell /data/local/tmp/sys0 version
+            adb shell /data/local/tmp/sys0 join "$JOIN" --name android-emulator --trust community --storage-gb 1 --no-service --data /data/local/tmp/s
+            adb shell "nohup /data/local/tmp/sys0 run --data /data/local/tmp/s >/dev/null 2>&1 &"
+            sleep 20
+            .github/ci-check-android.sh
+      - name: Check the node saw an Android machine
+        if: always()
+        run: tail -20 node/sys1.log

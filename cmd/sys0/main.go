@@ -58,6 +58,7 @@ func main() {
 	// First thing: drop to the lowest priority, before any other threads
 	// exist, so everything sys0 does or starts inherits it.
 	priority.Lowest()
+	paths.FixDNS()
 
 	cmd, args := "setup", os.Args[1:]
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {

@@ -1,0 +1,6 @@
+id=sys0
+name=sys0 (sys1 pool client)
+version=@VERSION@
+versionCode=@VERSIONCODE@
+author=A-Hackers-Guide
+description=Lends this rooted device's spare power and storage to a sys1 pool at the lowest priority. Join from a root shell: sys0 join <code> --data /data/adb/sys0
