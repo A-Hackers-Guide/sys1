@@ -256,3 +256,32 @@ func TestUpdatesGoToTheDataFolderWhenTheBinaryIsReadOnly(t *testing.T) {
 		t.Fatal("the failing copy is still used")
 	}
 }
+
+// TestPackageManagerInstallsUpdateBesideIt: a Homebrew copy is never
+// changed; the update goes to the data folder.
+func TestPackageManagerInstallsUpdateBesideIt(t *testing.T) {
+	u := newUpdater(t, fakeGitHub(t, "0.8.0", []byte("new binary"), false), nil)
+	brew := filepath.Join(u.DataDir, "homebrew", "Cellar", "sys1", "0.7.0", "bin", "sys0")
+	os.MkdirAll(filepath.Dir(brew), 0o755)
+	os.WriteFile(brew, []byte("brew binary"), 0o755)
+	u.Exe = brew
+	if why := u.Allowed(); why != "" {
+		t.Fatalf("updates off: %s", why)
+	}
+	if v, err := u.Once(context.Background()); err != nil || v != "0.8.0" {
+		t.Fatalf("Once = %q, %v", v, err)
+	}
+	if b, _ := os.ReadFile(brew); string(b) != "brew binary" {
+		t.Fatal("changed Homebrew's copy")
+	}
+	if b, _ := os.ReadFile(u.stagedPath()); string(b) != "new binary" {
+		t.Fatal("no copy in the data folder")
+	}
+	// Homebrew later catches up: the copy in the data folder goes away.
+	caught := *u
+	caught.Current = "0.8.0"
+	caught.Relaunch()
+	if _, err := os.Stat(u.stagedPath()); err == nil {
+		t.Fatal("stale copy kept")
+	}
+}

@@ -14,19 +14,16 @@ sys0 and sys1 keep themselves up to date. You don't have to do anything.
 
 Updates are checked one machine at a time. Each one fetches straight from GitHub; nothing goes through the node.
 
-## Installs that update elsewhere
+## However it was installed
 
-The app leaves updating to whatever installed it:
+Every install updates itself:
 
-| Installed with | Updated by |
-|---|---|
-| Homebrew, Scoop, winget, Chocolatey, snap, Nix, MacPorts | that package manager |
-| `.deb` / `.rpm` / `.apk` packages (`/usr/bin`) | your system's package manager |
-| AppImage | downloading the new AppImage |
-| Container image | pulling the new image |
-| Android app, Magisk module, iPhone/iPad app, jailbreak package | installing the new release |
+- **Plain downloads and the installers** (`install.sh`, `install.ps1`, the macOS `.pkg`, the Windows `.msi`): the binary is replaced where it is, when the app may write there.
+- **When it may not** (an installer put it in a system folder and it runs as you), and **for package managers** (Homebrew, Scoop, winget, Chocolatey, snap, Nix, MacPorts, `.deb`/`.rpm`/`.apk`): the package manager's copy is never touched. The update goes to `bin/` in the data folder, and the app switches to that copy when it starts. When the package manager later installs a newer version, that one runs and the copy in the data folder is removed.
 
-The installers (`install.sh`, `install.ps1`, the macOS `.pkg` and the Windows `.msi`) and plain downloads update themselves. The folder holding the binary must be writable by the service; if it isn't, the app says so and doesn't update.
+Left to their own updaters: container images (pull the new image), the Android app and Magisk module, and the iPhone/iPad app and jailbreak package.
+
+`sys0 doctor` shows whether a machine updates itself, and so does its card on the dashboard. **Update all machines now** on the Machines tab makes every machine check right away.
 
 ## Turning it off
 

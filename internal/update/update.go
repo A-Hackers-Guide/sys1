@@ -1,4 +1,5 @@
-// Package update keeps sys0 and sys1 up to date by themselves.
+// Package update keeps sys0 and sys1 up to date by themselves, however
+// they were installed.
 //
 // About once a day it asks GitHub for the latest release. A new version is
 // installed only when both checks pass:
@@ -11,7 +12,8 @@
 // The new binary replaces the old one with a rename, the old one is kept,
 // and the service manager restarts the app. If the new version keeps
 // crashing on start, Startup puts the old one back and that version is
-// skipped. Installs owned by a package manager are left to it.
+// skipped. A package manager's copy is left as it is: updates go to the
+// data folder beside it, and the newer of the two runs.
 package update
 
 import (
@@ -196,9 +198,6 @@ func (u *Updater) Allowed() string {
 	if err != nil {
 		return "can't find its own binary"
 	}
-	if m := managedBy(exe); m != "" {
-		return "installed by " + m + ", which updates it"
-	}
 	if inContainer() {
 		return "running in a container; pull the new image instead"
 	}
@@ -237,7 +236,10 @@ func (u *Updater) target() (path string, staged bool, err error) {
 		return "", false, err
 	}
 	st := u.stagedPath()
-	if exe != st && writable(filepath.Dir(exe)) {
+	// A package manager's copy is never touched: updates go beside it, and
+	// whichever is newer runs (an upgrade through the package manager wins
+	// once it catches up).
+	if exe != st && managedBy(exe) == "" && writable(filepath.Dir(exe)) {
 		return exe, false, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(st), 0o755); err != nil || !writable(filepath.Dir(st)) {
@@ -256,7 +258,16 @@ func (u *Updater) Relaunch() {
 		return
 	}
 	s := u.load()
-	if s.Staged == "" || !Newer(s.Staged, u.Current) {
+	if s.Staged == "" {
+		return
+	}
+	if !Newer(s.Staged, u.Current) {
+		// The installed binary caught up (a package manager upgraded it):
+		// the copy in the data folder is no longer needed.
+		os.Remove(st)
+		os.Remove(st + ".old")
+		s.Staged = ""
+		u.save(s)
 		return
 	}
 	if _, err := os.Stat(st); err != nil {

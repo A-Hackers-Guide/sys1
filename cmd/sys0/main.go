@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -56,6 +57,7 @@ Usage:
   sys0 update               install the latest version now
   sys0 run                  run in the foreground (what the service runs)
   sys0 status               show settings and service state
+  sys0 doctor               check what this machine can run, and why not
   sys0 install|uninstall    add or remove the background service
   sys0 start|stop|restart   control the background service
   sys0 version              print the version
@@ -169,6 +171,8 @@ func main() {
 		err = svc.Control(cmd)
 	case "status":
 		status(*dataDir, svc)
+	case "doctor":
+		doctor(*dataDir)
 	case "version", "--version":
 		fmt.Println("sys0", version.String())
 	case "help", "-h", "--help":
@@ -330,6 +334,37 @@ func status(dataDir string, svc *cli.Service) {
 	default:
 		fmt.Println("  updates:  automatic")
 	}
+}
+
+// doctor prints what sys0 finds on this machine, as the service sees it.
+func doctor(dataDir string) {
+	cfg, _ := agent.LoadConfig(dataDir)
+	r := (&resources.Sampler{DataDir: dataDir}).Sample(cfg.Trust == protocol.TrustOwner)
+	fmt.Println("sys0", version.Version, "on", r.OS, r.Arch)
+	fmt.Println("  apps it can run:", strings.Join(append([]string{}, r.Runtimes...), ", "))
+	for _, rt := range []string{"docker", "podman", "qemu-img"} {
+		if p, err := exec.LookPath(rt); err == nil {
+			fmt.Printf("  %-9s %s\n", rt+":", p)
+		}
+	}
+	if h := os.Getenv("DOCKER_HOST"); h != "" {
+		fmt.Println("  DOCKER_HOST:", h)
+	}
+	if len(r.Problems) == 0 {
+		fmt.Println("  problems: none")
+	}
+	for _, p := range r.Problems {
+		fmt.Println("  problem:", p)
+	}
+	switch why := updater(dataDir, nil).Allowed(); {
+	case cfg.NoAutoUpdate:
+		fmt.Println("  updates: off (sys0 auto-update on)")
+	case why != "":
+		fmt.Println("  updates:", why)
+	default:
+		fmt.Println("  updates: automatic")
+	}
+	fmt.Printf("  battery: %v, CPU idle %.0f%%, %d cores\n", map[bool]string{true: "on battery (paused)", false: "plugged in"}[r.OnBattery], r.CPUIdlePercent, r.CPUCores)
 }
 
 type multiFlag []string

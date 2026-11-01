@@ -83,12 +83,14 @@ func probeRuntimes() (rts, problems []string) {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		var stderr strings.Builder
+		var stdout, stderr strings.Builder
 		cmd := exec.CommandContext(ctx, rt, "info", "--format", "{{.ID}}")
-		cmd.Stderr = &stderr
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
 		err := cmd.Run()
 		cancel()
-		if err == nil {
+		// Newer Docker CLIs exit 0 even when no engine answers, so an
+		// engine counts only when it says who it is.
+		if id := strings.TrimSpace(stdout.String()); err == nil && id != "" && id != "<no value>" {
 			rts = append(rts, rt)
 			continue
 		}

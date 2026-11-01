@@ -10,10 +10,13 @@ Found on real machines: Docker that was installed but not seen, and installs tha
 
 - **Docker, Podman and QEMU weren't found by the background service** when they were installed in `/usr/local/bin`, Homebrew, Docker Desktop's own folder, `~/.docker/bin`, OrbStack or Rancher Desktop, or after the service had started (Windows services keep the PATH from boot). sys0 and sys1 now look in those places, and use Docker Desktop's, OrbStack's or Colima's socket when the default one is missing.
 - **Installs that couldn't replace their own binary never updated**, for example the macOS installer's `/usr/local/bin` with sys0 running as you. Updates now go to the data folder, and the app switches to that copy when it starts (with the same rollback).
+- **Homebrew, Scoop and other package-manager installs never updated** unless someone ran the package manager. They now update the same way, beside the package manager's copy, which wins again once it's newer.
+- **Docker counted as working when Docker Desktop wasn't running**: newer Docker CLIs exit successfully without an engine, so sys0 now needs the engine to answer.
 
 ### Added
 
 - Each machine card says **why** an app kind can't run there ("Docker is installed but not running. Open Docker Desktop and turn on 'Start when you sign in'", "sys0 isn't allowed to use it", …) and whether the machine **updates itself**, or why not.
+- `sys0 doctor`: what this machine can run, what's in the way, and whether it updates itself, as the background service sees it.
 - **Update all machines now** on the Machines tab: every machine and the node check for a new version within seconds instead of waiting for their daily check.
 
 ## [0.8.0] - 2026-11-01
