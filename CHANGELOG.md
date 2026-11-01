@@ -6,6 +6,7 @@ All notable changes are listed here. Versions follow [semantic versioning](https
 
 ### Fixed
 
+- On Windows, other machines couldn't reach a node whose program had moved: Windows Firewall rules are tied to a program's path, and a service never gets the *Allow access?* prompt. The service now adds its own allow rule for private and work networks when it starts ([#38](https://github.com/A-Hackers-Guide/sys1/issues/38)).
 - On Windows, a node or client could stay down after updating itself: it exits on purpose so Windows starts the new version, and a service without restart-on-failure actions was never started again. Each service now sets those actions itself every time it starts ([#37](https://github.com/A-Hackers-Guide/sys1/issues/37)).
 - On a Mac, `sys0 install` without `sudo` now says it installed for you only, and that `sudo sys0 install` makes it a system service macOS doesn't keep off your local network ([#36](https://github.com/A-Hackers-Guide/sys1/issues/36)).
 

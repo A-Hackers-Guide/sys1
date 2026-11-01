@@ -141,6 +141,7 @@ func (s *Service) RunManaged() error {
 	}
 	if !service.Interactive() {
 		ensureRecovery(s.Name)
+		allowInbound(s.Name)
 	}
 	return svc.Run()
 }

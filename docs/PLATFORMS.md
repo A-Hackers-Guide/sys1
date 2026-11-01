@@ -36,6 +36,8 @@ It moves your existing setup (same pool, same data) to a system service and remo
 
 sys0 and sys1 aren't code-signed yet, and Windows Security's machine-learning scan has once mistaken sys1.exe for a trojan (`Trojan:Win32/Bearfoos.A!ml`) and removed it while it ran ([#35](https://github.com/A-Hackers-Guide/sys1/issues/35)). Since 0.9.1 both programs carry version information, which makes this less likely, and the dashboard says so if a program's file disappears while it is running. If it happens: open **Windows Security → Virus & threat protection → Protection history**, choose the sys1 entry and **Allow on device**, then run `sys1 install` again as Administrator.
 
+The service also adds a Windows Firewall rule letting machines on private and work networks reach it (named after the service and its path); public networks stay closed ([#38](https://github.com/A-Hackers-Guide/sys1/issues/38)).
+
 ## Running apps on each OS
 
 Most marketplace packages are **containers**:
