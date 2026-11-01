@@ -197,6 +197,23 @@ func TestBackupRepairRestore(t *testing.T) {
 		return root != "" && n.pool.health.Chunks > 0 && n.pool.health.Healthy == n.pool.health.Chunks
 	})
 
+	// Backing up again with nothing changed must not make a new version.
+	if err := n.RunBackup(b.ID); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(8 * time.Second) // several heartbeats: the run is seen and finishes
+	n.mu.Lock()
+	versions := 0
+	for _, s := range n.pool.snapshots {
+		if s.Owner == "backup:"+b.ID {
+			versions++
+		}
+	}
+	n.mu.Unlock()
+	if versions != 1 {
+		t.Fatalf("unchanged folder produced %d versions, want 1", versions)
+	}
+
 	// Remove a machine that holds copies; the pool must re-make them.
 	var victim string
 	n.mu.Lock()

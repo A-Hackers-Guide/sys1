@@ -7,5 +7,20 @@
   "icon": "🔄",
   "author": "sys1",
   "homepage": "https://syncthing.net",
-  "run": {"kind": "container", "image": "syncthing/syncthing:latest", "network": true, "ports": ["8384:8384", "22000:22000", "22000:22000/udp", "21027:21027/udp"], "volumes": ["/var/syncthing"], "memoryMB": 256, "service": true}
+  "run": {
+    "kind": "container",
+    "image": "syncthing/syncthing:latest",
+    "network": true,
+    "ports": [
+      "8384:8384",
+      "22000:22000",
+      "22000:22000/udp",
+      "21027:21027/udp"
+    ],
+    "localVolumes": [
+      "/var/syncthing"
+    ],
+    "memoryMB": 256,
+    "service": true
+  }
 }

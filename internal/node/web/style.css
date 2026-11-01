@@ -184,3 +184,16 @@ dialog h3 { margin-top: 16px; }
   main { padding: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* storage */
+.backup-form { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 4px; }
+.backup-form h3 { margin: 12px 0 0; }
+.formrow { display: flex; gap: 12px; flex-wrap: wrap; }
+.formrow .field { margin: 10px 0 4px; }
+.formrow .grow { flex: 1; min-width: 220px; }
+select {
+  font: inherit; font-weight: 400; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); display: block; margin-top: 6px;
+}
+h2.spaced { margin-top: 24px; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }

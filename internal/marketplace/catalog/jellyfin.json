@@ -7,5 +7,22 @@
   "icon": "🎬",
   "author": "sys1",
   "homepage": "https://jellyfin.org",
-  "run": {"kind": "container", "image": "jellyfin/jellyfin:latest", "network": true, "ports": ["8096:8096"], "volumes": ["/config", "/cache", "/media"], "memoryMB": 2048, "gpu": true, "service": true}
+  "run": {
+    "kind": "container",
+    "image": "jellyfin/jellyfin:latest",
+    "network": true,
+    "ports": [
+      "8096:8096"
+    ],
+    "volumes": [
+      "/config"
+    ],
+    "localVolumes": [
+      "/cache",
+      "/media"
+    ],
+    "memoryMB": 2048,
+    "gpu": true,
+    "service": true
+  }
 }

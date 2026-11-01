@@ -7,5 +7,18 @@
   "icon": "🧠",
   "author": "sys1",
   "homepage": "https://ollama.com",
-  "run": {"kind": "container", "image": "ollama/ollama:latest", "network": true, "ports": ["11434:11434"], "volumes": ["/root/.ollama"], "memoryMB": 8192, "gpu": true, "service": true}
+  "run": {
+    "kind": "container",
+    "image": "ollama/ollama:latest",
+    "network": true,
+    "ports": [
+      "11434:11434"
+    ],
+    "localVolumes": [
+      "/root/.ollama"
+    ],
+    "memoryMB": 8192,
+    "gpu": true,
+    "service": true
+  }
 }

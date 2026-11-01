@@ -86,6 +86,18 @@ Unknown or removed machines get `401`.
 | `failed` | excludes this machine, keeps the checkpoint, requeues |
 | `refused` | excludes this machine, requeues |
 
+### Pooled storage
+
+| Endpoint | Body | Purpose |
+|---|---|---|
+| `PUT /api/v1/chunks/{id}` | sealed chunk bytes | Upload a chunk to the node's staging. Rejected unless `SHA-256(body) == id`. `507` when staging is full: retry later. |
+| `GET /api/v1/chunks/{id}` | | Download a chunk. `503` + `Retry-After` while the node fetches it from a holder; `404` if no holder is online. |
+| `POST /api/v1/inventory` | `{"chunks": [ids]}` | Every chunk this machine holds. Sent when the node asks. |
+| `POST /api/v1/snapshot` | `{"owner", "attempt", "root", "chunks", "size", "files"}` | A snapshot is in the pool. `409` with `missing` if some chunk isn't. |
+| `POST /api/v1/restore-result` | `{"id", "ok", "message", "files"}` | Outcome of a restore job. |
+
+Heartbeats carry a `storage` report (`quotaBytes`, `usedBytes`, `chunks`, plus `stored` and `missing` chunk IDs since the last one). Responses may carry `fetch`, `upload`, `drop` (chunk IDs), `inventory`, `backups`, `restores`, and `hurry` (heartbeat again in about a second). Task assignments for apps with volumes carry `dataKey` and `restore` (the snapshot to restore first). See [Storage](STORAGE.md).
+
 ### `GET /healthz`
 
 → `200 ok`
@@ -118,6 +130,8 @@ Unknown or removed machines get `401`.
   "env": { "NAME": "value" },
   "ports": ["8096:8096", "53:53/udp"],
   "volumes": ["/config"],
+  "localVolumes": ["/media"],
+  "snapshotSeconds": 60,
   "network": true,
   "cpu": 1.5,
   "memoryMB": 2048,

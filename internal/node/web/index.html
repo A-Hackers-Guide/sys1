@@ -20,6 +20,7 @@
     <button data-tab="overview" class="active">Overview</button>
     <button data-tab="machines">Machines</button>
     <button data-tab="apps">Apps</button>
+    <button data-tab="storage">Storage</button>
     <button data-tab="market">Marketplace</button>
     <button data-tab="add">Add a machine</button>
     <button data-tab="integrations">Integrations</button>
@@ -62,6 +63,43 @@
       <p class="muted">If a machine crashes or goes offline, its apps move to another machine automatically.</p>
     </div>
     <div id="apps" class="list"></div>
+  </section>
+
+  <section id="tab-storage" class="tab hidden">
+    <div class="section-head">
+      <h2>Pooled storage</h2>
+      <p class="muted">App data and backups are encrypted on the machine they come from, then copied to several machines. Machines that hold copies can't read them.</p>
+    </div>
+    <div class="stats" id="storage-stats"></div>
+    <div class="grid2">
+      <div class="panel">
+        <h2>Backups</h2>
+        <div id="backups" class="list"></div>
+        <form id="backup-form" class="backup-form">
+          <h3>Back up a folder</h3>
+          <div class="formrow">
+            <label class="field">Machine <select id="bk-machine" required></select></label>
+            <label class="field grow">Folder <input id="bk-path" placeholder="/home/you/Photos or C:\Users\you\Pictures" required></label>
+          </div>
+          <div class="formrow">
+            <label class="field">Copies <select id="bk-copies"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+            <label class="field">Every <select id="bk-every"><option value="15">15 minutes</option><option value="60" selected>hour</option><option value="360">6 hours</option><option value="1440">day</option></select></label>
+            <label class="field">Keep <select id="bk-keep"><option value="3">3 versions</option><option value="7" selected>7 versions</option><option value="30">30 versions</option></select></label>
+          </div>
+          <p id="bk-error" class="error"></p>
+          <button class="primary" id="bk-add">Start backing up</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>Space lent by each machine</h2>
+        <div id="storage-machines"></div>
+        <h2 class="spaced">Recovery key</h2>
+        <p class="muted small">Everything in the pool is encrypted with a key that lives on this node. If this node's disk is lost, the data can only be recovered with this key. Copy it somewhere safe, like a password manager.</p>
+        <div class="copyrow"><input id="recovery" readonly value="Hidden"><button id="show-key">Show</button></div>
+        <h2 class="spaced">Recent restores</h2>
+        <div id="restores" class="list"></div>
+      </div>
+    </div>
   </section>
 
   <section id="tab-market" class="tab hidden">
@@ -129,6 +167,22 @@
     <div class="actions">
       <button value="cancel" class="ghost">Cancel</button>
       <button id="deploy-go" value="default" class="primary">Deploy to the pool</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="restore">
+  <form method="dialog" id="restore-form">
+    <h2>Restore a backup</h2>
+    <p class="muted" id="rs-from"></p>
+    <label class="field">Version <select id="rs-version"></select></label>
+    <label class="field">To machine <select id="rs-machine"></select></label>
+    <label class="field">Into a new folder <input id="rs-dest" required></label>
+    <p class="muted small">Restores never overwrite: the folder must be new or empty.</p>
+    <p id="rs-error" class="error"></p>
+    <div class="actions">
+      <button value="cancel" class="ghost">Cancel</button>
+      <button id="rs-go" value="default" class="primary">Restore</button>
     </div>
   </form>
 </dialog>

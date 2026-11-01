@@ -272,8 +272,11 @@ func (s *agentStorage) snapshot(ctx context.Context, dir, owner string, attempt 
 		}
 		return prevRoot, err
 	}
+	// The snapshot is safely in the pool now. Failing to save the index
+	// only costs re-reading files next time, so it is not an error.
+	os.MkdirAll(filepath.Dir(indexPath), 0o700)
 	if err := storage.SaveIndex(indexPath, res.Index); err != nil {
-		return res.Root, err
+		s.a.log.Warn("could not save snapshot index", "err", err)
 	}
 	return res.Root, nil
 }
@@ -333,6 +336,7 @@ func (s *agentStorage) syncBackups(ctx context.Context, jobs []protocol.BackupJo
 
 func (s *agentStorage) runBackup(ctx context.Context, b *backupState) {
 	job := b.job
+	os.MkdirAll(s.backupDir(job.ID), 0o700)
 	root, err := s.snapshot(ctx, job.Path, "backup:"+job.ID, 0, job.Key, filepath.Join(s.backupDir(job.ID), "index.json"), b.lastRoot, nil)
 	s.mu.Lock()
 	b.running = false

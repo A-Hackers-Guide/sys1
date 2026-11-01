@@ -41,6 +41,13 @@ A package is one JSON file: a description for humans plus a spec for machines. A
 | `inputs` | | Values asked for at deploy time (below). |
 | `run` | ✅ | A [TaskSpec](PROTOCOL.md#taskspec). |
 
+### Volumes
+
+- `run.volumes`: app data kept in [pooled storage](STORAGE.md). Snapshotted every `snapshotSeconds` (default 60) and on stop, and restored wherever the app moves. Use it for settings and databases.
+- `run.localVolumes`: kept on the machine the app runs on (containers only). Use it for big media libraries, caches and AI models.
+
+Native (`exec`) programs find their pooled volumes in `$SYS1_VOLUME_0`, `$SYS1_VOLUME_1`, …
+
 ### Inputs
 
 ```json

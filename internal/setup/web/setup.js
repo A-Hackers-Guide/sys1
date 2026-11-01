@@ -21,6 +21,9 @@ fetch("api/info").then((r) => r.json()).then((info) => {
   const r = info.resources;
   $("#ver").textContent = info.version;
   $("#name").value = r.hostname || "";
+  const freeGB = Math.floor((r.diskFree || 0) / 2 ** 30);
+  $("#disk").max = Math.max(0, Math.min(2000, freeGB - 5));
+  if (Number($("#disk").value) > Number($("#disk").max)) { $("#disk").value = $("#disk").max; $("#diskv").textContent = $("#disk").max + " GB"; }
   $("#machine").textContent = `This machine: ${OS[r.os] || r.os} on ${r.arch}, ${r.cpuCores} cores, ${bytes(r.memTotal)} memory, ${bytes(r.diskFree)} free disk` +
     (r.runtimes && r.runtimes.length ? `, ${r.runtimes.join(" + ")} ready` : ". Tip: install Docker or Podman so it can run containers.");
   if (info.configured) $("#machine").textContent += " · Already joined a pool; continuing will switch it to a new one.";
@@ -39,6 +42,10 @@ document.querySelectorAll("[data-next]").forEach((b) => b.addEventListener("clic
 }));
 document.querySelectorAll("[data-back]").forEach((b) => b.addEventListener("click", () => go(at - 1)));
 $("#max").addEventListener("input", () => ($("#maxv").textContent = $("#max").value));
+$("#disk").addEventListener("input", () => {
+  const v = Number($("#disk").value);
+  $("#diskv").textContent = v === 0 ? "none" : v + " GB";
+});
 
 $("#finish").addEventListener("click", async () => {
   go(3);
@@ -51,6 +58,7 @@ $("#finish").addEventListener("click", async () => {
         name: $("#name").value.trim(),
         trust: document.querySelector("input[name=trust]:checked").value,
         maxTasks: Number($("#max").value),
+        storageGB: Number($("#disk").value),
       }),
     });
     const res = await r.json();

@@ -41,20 +41,21 @@ It comes as **two apps, everywhere**:
                  └─────────┘
 ```
 
-## What it does today (v0.1)
+## What it does today (v0.3)
 
 - ✅ **Joins machines in one paste.** The node shows a join code; paste it into the sys0 installer.
 - ✅ **Lowest priority on every OS.** `nice 19` + idle I/O on Linux, background QoS on macOS, `IDLE_PRIORITY_CLASS` + background mode on Windows, `nice 19` on BSD/UNIX. Containers get the minimum CPU weight too.
 - ✅ **Places work on the best machine** by spare CPU, memory and GPU, and skips busy machines and laptops on battery.
 - ✅ **Watchdog.** Crashed apps restart with backoff. After **5 crashes in a row** it stops, uploads the app's fast-saved checkpoint to the node, and the node **moves the app to another machine**, which resumes from that checkpoint.
 - ✅ **Machine goes offline?** Its work is resent to a replacement within ~15 seconds, with the cached checkpoint.
+- ✅ **Pooled storage.** Spare disk on every machine becomes one encrypted store. App data is snapshotted every minute and **moves with the app** to a new machine; folders are **backed up with N copies** on different machines and restore anywhere. Machines holding copies can't read them, and lost copies are re-made automatically. See [Storage](docs/STORAGE.md).
 - ✅ **Fast save.** The node's state and each client's undelivered results live in an fsync'd, checksummed write-ahead journal. Pull the plug at any moment and nothing acknowledged is lost.
 - ✅ **Marketplace** with Jellyfin, Plex, Audiobookshelf, Ollama (AI), Syncthing (backups), websites, Cloudflare Tunnel, GitHub Actions runners, any container… and it only offers what your connected machines can actually run.
 - ✅ **Signed packages.** Third-party packages must be Ed25519-signed by a key you chose to trust.
 - ✅ **Safe for strangers.** Machines shared by other people only run hardened, sandboxed containers. Native programs run only on machines whose owner said "this is mine".
 - ✅ **Builds for 21+ OS/CPU combinations** from one codebase: Windows, macOS, Linux, FreeBSD, OpenBSD, NetBSD, DragonFly, Solaris, illumos, AIX, Android…
 
-See the **[roadmap](docs/ROADMAP.md)** for what's next (pooled storage, AI model sharding, cloud gaming, native installers for every package manager…).
+See the **[roadmap](docs/ROADMAP.md)** for what's next (AI model sharding, batch jobs, NAT traversal, cloud gaming…).
 
 ## Quick start
 
@@ -106,6 +107,7 @@ go build ./cmd/sys0 && go build ./cmd/sys1
 | [Getting started](docs/GETTING-STARTED.md) | Install, join, deploy, in plain words |
 | [Architecture](docs/ARCHITECTURE.md) | How the pieces fit together |
 | [Reliability](docs/RELIABILITY.md) | Fast save, watchdog, failover: exactly what "no data loss" means |
+| [Storage](docs/STORAGE.md) | Pooled, encrypted, replicated storage; app data and backups |
 | [Security model](docs/SECURITY-MODEL.md) | Trust levels, sandboxing, what a malicious node or client can and cannot do |
 | [Marketplace packages](docs/PACKAGES.md) | Package format, signing, publishing |
 | [Protocol](docs/PROTOCOL.md) | The client ⇄ node API |

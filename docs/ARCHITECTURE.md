@@ -51,6 +51,7 @@ So sys1 does what real clouds do:
 | Runner | `internal/agent/runner.go` | Builds hardened `docker run` / `podman run` commands or native processes; captures the output tail; enforces log caps. |
 | Watchdog | `internal/watchdog` | Restarts crashed apps with exponential backoff; gives up after 5 consecutive crashes. |
 | Outbox | `internal/journal` | Every result is written durably before delivery and kept until the node confirms it. |
+| Storage | `internal/agent/storage.go` | Holds chunks for the pool within the owner's share of disk; snapshots and restores app volumes; runs backups and restores. |
 | Resources | `internal/resources` | Spare CPU, memory, disk, GPUs and working container runtimes. |
 
 ### sys1 (node), `cmd/sys1`, `internal/node`
@@ -63,6 +64,11 @@ So sys1 does what real clouds do:
 | Dashboard | `gui.go`, `web/` | Localhost-only, key-protected UI with no third-party code. |
 | Marketplace | `internal/marketplace` | Loads builtin and signed packages, checks compatibility against connected machines. |
 | Built-in client | `cmd/sys1/main.go` | The node lends its own machine to the pool through an in-process sys0 with owner trust. |
+| Storage manager | `storage.go` | Tracks snapshots and which machine holds which chunk; keeps N copies through a staging area; repairs, trims and garbage-collects. See [Storage](STORAGE.md). |
+
+### Shared storage engine, `internal/storage`
+
+Encryption and chunk IDs (`crypto.go`), the on-disk chunk store every machine keeps (`store.go`), and snapshots that turn a folder into chunks and back (`snapshot.go`).
 
 ## The life of a task
 
@@ -108,6 +114,7 @@ internal/
   priority/      lowest-priority setup per OS
   protocol/      wire types, join codes, spec validation
   resources/     spare-capacity measurement
+  storage/       encryption, chunk store, snapshots
   setup/         graphical setup wizard (web/)
   tlsutil/       node certificate and pinning
   version/       build metadata

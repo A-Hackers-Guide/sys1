@@ -13,6 +13,7 @@ Start with **[Getting started](GETTING-STARTED.md)** if you just want to use sys
 
 - [Architecture](ARCHITECTURE.md): components, data flow, code map
 - [Reliability](RELIABILITY.md): fast save, watchdog, failover, and the exact guarantees
+- [Storage](STORAGE.md): pooled, encrypted, replicated storage for app data and backups
 - [Security model](SECURITY-MODEL.md): trust levels, sandboxing, threat model
 - [Protocol](PROTOCOL.md): every message between sys0 and sys1
 
@@ -34,4 +35,6 @@ Start with **[Getting started](GETTING-STARTED.md)** if you just want to use sys
 | **Community machine** | A client shared by someone else. Only sandboxed containers run on it. |
 | **Task / app** | One deployed package running on the pool. |
 | **Checkpoint** | Up to 8 MB of state an app saves to `$SYS1_CHECKPOINT` so it can resume on another machine. |
+| **Chunk** | Up to 4 MiB of data, encrypted on the machine it came from, named by the hash of its encrypted bytes. |
+| **Snapshot** | A folder (an app's volumes, or a backed-up folder) turned into chunks at one moment. |
 | **Journal** | The crash-safe write-ahead log holding the node's state and each client's outbox. |

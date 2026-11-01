@@ -45,6 +45,8 @@ Usage:
         --foreground          stay in the foreground (for containers)
         --no-local            do not lend this machine's own capacity to the pool
         --trust-key <key>     trust marketplace packages signed by this key (repeatable)
+        --copies <n>          copies kept of app data in pooled storage (default 3)
+        --staging-gb <n>      disk the node uses to pass data between machines (default 4)
   sys1 open                 open the dashboard of a running node
   sys1 join-code            print the join code for new machines
   sys1 install|uninstall    run the node as a background service (starts at boot)
@@ -80,6 +82,8 @@ func main() {
 	foreground := fs.Bool("foreground", false, "run in the foreground even when no terminal is attached (containers)")
 	noLocal := fs.Bool("no-local", false, "do not lend this machine's capacity")
 	keyFile := fs.String("key", "", "signing key file")
+	copies := fs.Int("copies", 3, "copies kept of app data")
+	stagingGB := fs.Int("staging-gb", 4, "disk the node may use to pass chunks between machines")
 	verbose := fs.Bool("v", false, "verbose logging")
 	var trustKeys multi
 	fs.Var(&trustKeys, "trust-key", "trusted package signing key")
@@ -95,8 +99,10 @@ func main() {
 	}
 
 	log := cli.Logger(*dataDir, "sys1", *verbose)
-	cfg := node.Config{DataDir: *dataDir, ListenAddr: *listen, GUIAddr: *gui, PublicAddr: *public, TrustedKeys: append(trustKeys, readTrustedKeys(*dataDir)...)}
-	svcArgs := []string{"serve", "--no-open", "--data", *dataDir, "--listen", *listen, "--gui", *gui}
+	cfg := node.Config{DataDir: *dataDir, ListenAddr: *listen, GUIAddr: *gui, PublicAddr: *public, TrustedKeys: append(trustKeys, readTrustedKeys(*dataDir)...),
+		Copies: *copies, StagingBytes: int64(*stagingGB) << 30}
+	svcArgs := []string{"serve", "--no-open", "--data", *dataDir, "--listen", *listen, "--gui", *gui,
+		"--copies", fmt.Sprint(*copies), "--staging-gb", fmt.Sprint(*stagingGB)}
 	if *public != "" {
 		svcArgs = append(svcArgs, "--public-addr", *public)
 	}

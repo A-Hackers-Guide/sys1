@@ -54,6 +54,11 @@
         <input id="max" type="range" min="1" max="16" value="4">
         <span class="muted" id="maxv">4</span>
       </label>
+      <label>Disk space to lend for pooled storage
+        <input id="disk" type="range" min="0" max="500" step="5" value="10">
+        <span class="muted" id="diskv">10 GB</span>
+      </label>
+      <p class="muted small">Encrypted pieces of other machines' backups and app data. You can't read them, and neither can anyone else without the pool's key. sys0 always leaves 5 GB of your disk free.</p>
       <div class="actions"><button class="ghost" data-back>Back</button><button class="primary" id="finish">Join the pool</button></div>
       <p id="err2" class="error"></p>
     </section>

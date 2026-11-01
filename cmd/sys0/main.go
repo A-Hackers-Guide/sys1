@@ -38,6 +38,7 @@ Usage:
         --trust owner|community
                               "owner" if you run the node yourself (default: community)
         --max-tasks <n>       most tasks at once (default 4)
+        --storage-gb <n>      disk space to lend for pooled storage (default 10, 0 = none)
         --no-service          do not install the background service
   sys0 run                  run in the foreground (what the service runs)
   sys0 status               show settings and service state
@@ -64,6 +65,7 @@ func main() {
 	trust := fs.String("trust", string(protocol.TrustCommunity), "owner or community")
 	maxTasks := fs.Int("max-tasks", 4, "most tasks at once")
 	noService := fs.Bool("no-service", false, "do not install the service")
+	storageGB := fs.Int("storage-gb", agent.DefaultStorageGB, "disk space to lend for pooled storage, in GB (0 = none)")
 	noBrowser := fs.Bool("no-browser", false, "do not open a browser")
 	fs.Usage = func() { fmt.Fprintf(os.Stderr, usage, paths.DataDir("sys0")) }
 	// Allow `sys0 join <code> --name x` as well as `sys0 join --name x <code>`.
@@ -105,7 +107,7 @@ func main() {
 			err = errors.New("usage: sys0 join <join code>")
 			break
 		}
-		err = join(positional[0], *dataDir, *name, protocol.Trust(*trust), *maxTasks)
+		err = join(positional[0], *dataDir, *name, protocol.Trust(*trust), *maxTasks, *storageGB)
 		if err == nil && !*noService {
 			err = svc.Install()
 		}
@@ -167,7 +169,7 @@ func runAgent(ctx context.Context, dataDir string, log *slog.Logger) error {
 	}
 }
 
-func join(code, dataDir, name string, trust protocol.Trust, maxTasks int) error {
+func join(code, dataDir, name string, trust protocol.Trust, maxTasks, storageGB int) error {
 	jc, err := protocol.ParseJoinCode(code)
 	if err != nil {
 		return err
@@ -185,6 +187,9 @@ func join(code, dataDir, name string, trust protocol.Trust, maxTasks int) error 
 	if maxTasks > 0 {
 		cfg.MaxTasks = maxTasks
 	}
+	if storageGB >= 0 {
+		cfg.StorageGB = storageGB
+	}
 	return agent.SaveConfig(dataDir, cfg)
 }
 
@@ -201,4 +206,5 @@ func status(dataDir string, svc *cli.Service) {
 	fmt.Println("  name:   ", cfg.Name)
 	fmt.Println("  trust:  ", cfg.Trust)
 	fmt.Println("  max tasks:", cfg.MaxTasks)
+	fmt.Println("  storage: ", cfg.StorageGB, "GB lent to the pool")
 }

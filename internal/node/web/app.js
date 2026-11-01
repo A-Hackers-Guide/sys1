@@ -83,6 +83,7 @@ function show(tab) {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== "tab-" + tab));
   if (tab === "market") loadCatalog();
+  if (tab === "storage") loadStorage();
   try { localStorage.setItem("sys1.tab", tab); } catch {}
 }
 document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
@@ -169,6 +170,8 @@ function taskRow(t) {
       h("div", { class: "msg" }, (t.message || "") + where + (t.attempt > 1 ? ` · attempt ${t.attempt}` : "")),
       ports.length > 0 && t.state === "running" && h("div", { class: "chips" }, ports.map((p) => h("span", { class: "chip" }, `port ${p} on ${t.agentHost || t.agent}`)))),
     t.hasCheckpoint && h("span", { class: "chip accent", title: "Fast-saved state is cached on the node" }, "saved"),
+    t.pooledData && h("span", { class: "chip " + (t.dataSavedAt && t.dataSavedAt > "2000" ? "ok" : "warn"), title: "This app's data is copied to the pool, so it moves with the app" },
+      t.dataSavedAt && t.dataSavedAt > "2000" ? "data saved " + ago(t.dataSavedAt) : "data not saved yet"),
     h("span", { class: "chip " + cls }, label),
     t.output && h("button", { class: "ghost", onclick: () => showOutput(t) }, "Output"),
     h("button", {
@@ -265,6 +268,112 @@ $("#rotate").addEventListener("click", async () => {
   try { await api("/api/joincode/rotate", {}); toast("New join code ready"); refresh(); } catch (e) { toast(e.message); }
 });
 
+// ---- storage ----
+let storageState = null;
+
+async function loadStorage() {
+  try { storageState = await api("/api/storage"); renderStorage(storageState); } catch {}
+}
+
+function renderStorage(s) {
+  s.machines = s.machines || [];
+  s.backups = (s.backups || []).map((b) => ({ ...b, snapshots: b.snapshots || [] }));
+  s.restores = s.restores || [];
+  const hl = s.health;
+  const lent = s.machines.reduce((a, m) => a + (m.online ? m.quota : 0), 0);
+  const pct = hl.chunks ? Math.round((hl.healthy / hl.chunks) * 100) : 100;
+  fill($("#storage-stats"),
+    stat("Backed up", bytes(s.backedUp), `${s.backups.length} folder${s.backups.length === 1 ? "" : "s"}`),
+    stat("App data", bytes(s.appData), "moves with its apps"),
+    stat("Fully protected", hl.chunks ? pct + "%" : "–", hl.chunks ? `${hl.healthy} of ${hl.chunks} chunks have ${s.copies}+ copies` : "nothing stored yet"),
+    stat("Space lent", bytes(lent), `${bytes(hl.storedBytes)} in use, every copy counted`));
+
+  const owners = s.machines.filter((m) => m.owner);
+  const sel = $("#bk-machine");
+  const keep = sel.value;
+  fill(sel, owners.length ? owners.map((m) => h("option", { value: m.id }, m.name + (m.online ? "" : " (offline)"))) : h("option", { value: "" }, "No machines of yours yet"));
+  if (keep) sel.value = keep;
+
+  fill($("#backups"), s.backups.length ? s.backups.map((b) => {
+    const last = b.snapshots[0];
+    return h("div", { class: "item" },
+      h("div", { class: "emoji" }, "🗂️"),
+      h("div", { class: "grow" },
+        h("div", { class: "title mono" }, b.path),
+        h("div", { class: "msg" }, `${b.machine || "removed machine"} · ${b.copies} copies · every ${b.intervalMinutes >= 60 ? b.intervalMinutes / 60 + "h" : b.intervalMinutes + "m"} · ` +
+          (last ? `last backup ${ago(last.created)}, ${bytes(last.size)}, ${last.files} files, ${b.snapshots.length} version${b.snapshots.length === 1 ? "" : "s"}` : "first backup pending"))),
+      h("button", { class: "ghost", onclick: async () => { try { await api(`/api/backups/${b.id}/run`, {}); toast("Backing up now"); } catch (e) { toast(e.message); } } }, "Back up now"),
+      h("button", { class: "ghost", disabled: !last, onclick: () => openRestore(b) }, "Restore"),
+      h("button", { class: "ghost danger", onclick: async () => {
+        if (!confirm(`Stop backing up ${b.path} and delete its ${b.snapshots.length} saved versions from the pool?`)) return;
+        try { await api(`/api/backups/${b.id}/remove`, {}); toast("Backup removed"); loadStorage(); } catch (e) { toast(e.message); }
+      } }, "Remove"));
+  }) : h("p", { class: "muted" }, "No backups yet. Pick a folder on one of your machines below."));
+
+  fill($("#storage-machines"), s.machines.length ? s.machines.map((m) =>
+    meter(`${m.name}${m.online ? "" : " (offline)"}`, m.used, m.quota || 1, m.quota ? `${bytes(m.used)} of ${bytes(m.quota)}` : "not lending space")) :
+    h("p", { class: "muted" }, "No machines yet."));
+
+  fill($("#restores"), s.restores.length ? s.restores.map((r) => h("div", { class: "item" },
+    h("div", { class: "grow" },
+      h("div", { class: "title mono" }, r.dest),
+      h("div", { class: "msg" }, `${r.machine} · ${ago(r.created)}` + (r.message ? " · " + r.message : "") + (r.files ? ` · ${r.files} items` : ""))),
+    h("span", { class: "chip " + ({ done: "ok", failed: "bad" }[r.state] || "warn") }, { done: "Restored", failed: "Failed", pending: "Restoring" }[r.state] || r.state))) :
+    h("p", { class: "muted" }, "Nothing restored yet."));
+}
+
+function openRestore(b) {
+  $("#rs-from").textContent = `${b.path} on ${b.machine || "a removed machine"}`;
+  fill($("#rs-version"), b.snapshots.map((s) => h("option", { value: s.root }, `${new Date(s.created).toLocaleString()} · ${bytes(s.size)} · ${s.files} files`)));
+  const owners = storageState.machines.filter((m) => m.owner && m.online);
+  fill($("#rs-machine"), owners.map((m) => h("option", { value: m.id }, m.name)));
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  $("#rs-dest").value = b.path.replace(/[\\/]+$/, "") + "-restored-" + stamp;
+  $("#rs-error").textContent = "";
+  $("#restore").showModal();
+}
+
+$("#rs-go").addEventListener("click", async (e) => {
+  e.preventDefault();
+  if (!$("#restore-form").reportValidity()) return;
+  try {
+    await api("/api/restores", { root: $("#rs-version").value, agentId: $("#rs-machine").value, dest: $("#rs-dest").value.trim() });
+    $("#restore").close();
+    toast("Restore started");
+    loadStorage();
+  } catch (err) { $("#rs-error").textContent = err.message; }
+});
+
+$("#bk-add").addEventListener("click", async (e) => {
+  e.preventDefault();
+  if (!$("#backup-form").reportValidity()) return;
+  try {
+    await api("/api/backups", {
+      agentId: $("#bk-machine").value, path: $("#bk-path").value.trim(),
+      copies: Number($("#bk-copies").value), intervalMinutes: Number($("#bk-every").value), keep: Number($("#bk-keep").value),
+    });
+    $("#bk-path").value = "";
+    $("#bk-error").textContent = "";
+    toast("Backup added. The first copy starts within a minute.");
+    loadStorage();
+  } catch (err) { $("#bk-error").textContent = err.message; }
+});
+
+$("#show-key").addEventListener("click", async () => {
+  const input = $("#recovery");
+  if (input.dataset.shown) {
+    try { await navigator.clipboard.writeText(input.value); toast("Recovery key copied"); } catch { input.select(); }
+    return;
+  }
+  try {
+    const { key } = await api("/api/storage/recovery-key");
+    input.value = key;
+    input.dataset.shown = "1";
+    $("#show-key").textContent = "Copy";
+  } catch (err) { toast(err.message); }
+});
+
 // ---- live updates ----
 async function refresh() {
   try {
@@ -277,6 +386,7 @@ async function refresh() {
     renderMachines(state);
     renderApps(state);
     renderAdd(state);
+    if (current === "storage") loadStorage();
   } catch (e) {
     if (e.message === "locked") {
       $("#live").className = "live bad";

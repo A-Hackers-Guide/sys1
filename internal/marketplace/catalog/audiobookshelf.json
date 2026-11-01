@@ -7,5 +7,22 @@
   "icon": "🎧",
   "author": "sys1",
   "homepage": "https://www.audiobookshelf.org",
-  "run": {"kind": "container", "image": "ghcr.io/advplyr/audiobookshelf:latest", "network": true, "ports": ["13378:80"], "volumes": ["/config", "/metadata", "/audiobooks", "/podcasts"], "memoryMB": 512, "service": true}
+  "run": {
+    "kind": "container",
+    "image": "ghcr.io/advplyr/audiobookshelf:latest",
+    "network": true,
+    "ports": [
+      "13378:80"
+    ],
+    "volumes": [
+      "/config",
+      "/metadata"
+    ],
+    "localVolumes": [
+      "/audiobooks",
+      "/podcasts"
+    ],
+    "memoryMB": 512,
+    "service": true
+  }
 }

@@ -42,6 +42,7 @@ button.primary { background: var(--accent); color: var(--card); border-color: va
 button:disabled { opacity: .6; }
 .error { color: var(--bad); min-height: 1em; }
 .muted { color: var(--muted); font-weight: 400; }
+.small { font-size: 13px; }
 .hidden { display: none; }
 .foot { text-align: center; color: rgba(255, 255, 255, .7); font-size: 13px; }
 .foot a { color: #fff; }

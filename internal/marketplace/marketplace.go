@@ -155,7 +155,10 @@ func (m Manifest) Permissions() []string {
 		p = append(p, "Opens port "+strings.SplitN(port, ":", 2)[0])
 	}
 	if len(r.Volumes) > 0 {
-		p = append(p, "Stores data on the machine it runs on")
+		p = append(p, "Keeps its data in pooled storage, encrypted, so it moves with the app")
+	}
+	if len(r.LocalVolumes) > 0 {
+		p = append(p, "Keeps large data on the machine it runs on")
 	}
 	if r.GPU {
 		p = append(p, "Uses the GPU when available")

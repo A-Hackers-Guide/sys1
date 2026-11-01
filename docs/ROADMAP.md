@@ -36,12 +36,15 @@ Still open. Most need an account, certificate or key only the maintainers can ge
 - Messages to community-maintained repositories (#8)
 - Flatpak (#3): design work, since its sandbox is built for desktop apps rather than system services
 
-## 🗄️ v0.3: Pooled storage
+## ✅ v0.3: Pooled storage (done)
 
-- Replicated block storage across machines (erasure coding, configurable copies)
-- App volumes on pooled storage, **so apps move with all their data**
-- Backups as a first-class feature: "keep 3 copies of this folder across the pool"
-- Encryption at rest for data on community machines
+- ✅ Encrypted (AES-256-GCM), content-addressed chunks replicated across machines, with configurable copies
+- ✅ App volumes on pooled storage, **so apps move with their data**; consistent snapshots every minute and on stop
+- ✅ Backups as a first-class feature: "keep 3 copies of this folder", with versions and restore to any of your machines
+- ✅ Automatic repair of lost copies, cleanup of unused data, bit-rot detection
+- ✅ Machines that hold copies can't read them; each app and backup has its own key
+
+Next for storage: erasure coding (less space than full copies), block-level deduplication within large files, direct machine-to-machine transfers (with v0.5), and catalog recovery after losing the node (#27).
 
 ## 🧠 v0.4: AI and batch
 

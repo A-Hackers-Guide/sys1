@@ -67,6 +67,42 @@ func (n *Node) guiHandler(addr string) http.Handler {
 	mux.HandleFunc("POST /api/agents/{id}/remove", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		replyErr(w, n.RemoveAgent(r.PathValue("id")))
 	}))
+	mux.HandleFunc("GET /api/storage", n.guiAuth(n.handleStorage))
+	mux.HandleFunc("GET /api/storage/recovery-key", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]string{"key": n.RecoveryKey()})
+	}))
+	mux.HandleFunc("POST /api/backups", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			AgentID         string `json:"agentId"`
+			Path            string `json:"path"`
+			Copies          int    `json:"copies"`
+			IntervalMinutes int    `json:"intervalMinutes"`
+			Keep            int    `json:"keep"`
+		}
+		if !readJSON(w, r, 1<<16, &req) {
+			return
+		}
+		_, err := n.AddBackup(req.AgentID, req.Path, req.Copies, req.IntervalMinutes, req.Keep)
+		replyErr(w, err)
+	}))
+	mux.HandleFunc("POST /api/backups/{id}/run", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		replyErr(w, n.RunBackup(r.PathValue("id")))
+	}))
+	mux.HandleFunc("POST /api/backups/{id}/remove", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		replyErr(w, n.RemoveBackup(r.PathValue("id")))
+	}))
+	mux.HandleFunc("POST /api/restores", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Root    string `json:"root"`
+			AgentID string `json:"agentId"`
+			Dest    string `json:"dest"`
+		}
+		if !readJSON(w, r, 1<<16, &req) {
+			return
+		}
+		_, err := n.StartRestore(req.Root, req.AgentID, req.Dest)
+		replyErr(w, err)
+	}))
 	mux.HandleFunc("POST /api/joincode/rotate", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		n.RotateJoinCode()
 		replyErr(w, nil)
@@ -139,6 +175,8 @@ type taskView struct {
 	Created   time.Time `json:"created"`
 	Updated   time.Time `json:"updated"`
 	HasSaved  bool      `json:"hasCheckpoint"`
+	Pooled    bool      `json:"pooledData"`
+	SavedAt   time.Time `json:"dataSavedAt"`
 	AgentHost string    `json:"agentHost,omitempty"`
 }
 
@@ -181,6 +219,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 			ID: t.ID, Package: t.Package, Title: t.Title, State: t.State, Attempt: t.Attempt, Message: t.Message,
 			Output: t.Output, ExitCode: t.ExitCode, Ports: t.Spec.Ports, Kind: string(t.Spec.Kind), Service: t.Spec.Service,
 			Created: t.Created, Updated: t.Updated, HasSaved: len(t.Checkpoint) > 0,
+			Pooled: len(t.Spec.Volumes) > 0, SavedAt: t.SnapshotAt,
 		}
 		if a := n.agents[t.AgentID]; a != nil {
 			tv.Agent, tv.AgentHost = a.Name, a.Resources.Hostname
@@ -265,4 +304,85 @@ func (n *Node) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]string{"id": t.ID})
+}
+
+type snapshotView struct {
+	Root    string    `json:"root"`
+	Created time.Time `json:"created"`
+	Size    int64     `json:"size"`
+	Files   int       `json:"files"`
+	Machine string    `json:"machine"`
+}
+
+func (n *Node) handleStorage(w http.ResponseWriter, r *http.Request) {
+	now := time.Now()
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	type machine struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Online bool   `json:"online"`
+		Owner  bool   `json:"owner"`
+		Quota  int64  `json:"quota"`
+		Used   int64  `json:"used"`
+		Chunks int    `json:"chunks"`
+	}
+	type backup struct {
+		*Backup
+		Machine   string         `json:"machine"`
+		Snapshots []snapshotView `json:"snapshots"`
+	}
+	type restore struct {
+		*Restore
+		Machine string `json:"machine"`
+	}
+	var out struct {
+		Health   PoolHealth `json:"health"`
+		Copies   int        `json:"copies"`
+		Machines []machine  `json:"machines"`
+		Backups  []backup   `json:"backups"`
+		Restores []restore  `json:"restores"`
+		AppData  int64      `json:"appData"`
+		Backed   int64      `json:"backedUp"`
+	}
+	out.Health, out.Copies = n.pool.health, n.pool.copies
+	out.Machines, out.Backups, out.Restores = []machine{}, []backup{}, []restore{}
+	for _, a := range n.agents {
+		out.Machines = append(out.Machines, machine{a.ID, a.Name, n.online(a, now), a.Trust == protocol.TrustOwner, a.Storage.QuotaBytes, a.Storage.UsedBytes, a.Storage.Chunks})
+	}
+	sort.Slice(out.Machines, func(i, j int) bool { return out.Machines[i].Name < out.Machines[j].Name })
+	for _, b := range n.pool.backups {
+		bv := backup{Backup: b, Snapshots: []snapshotView{}}
+		if a := n.agents[b.AgentID]; a != nil {
+			bv.Machine = a.Name
+		}
+		for _, s := range n.pool.snapshots {
+			if s.Owner == "backup:"+b.ID {
+				bv.Snapshots = append(bv.Snapshots, snapshotView{s.Root, s.Created, s.Size, s.Files, s.Machine})
+			}
+		}
+		sort.Slice(bv.Snapshots, func(i, j int) bool { return bv.Snapshots[i].Created.After(bv.Snapshots[j].Created) })
+		if len(bv.Snapshots) > 0 {
+			out.Backed += bv.Snapshots[0].Size
+		}
+		out.Backups = append(out.Backups, bv)
+	}
+	sort.Slice(out.Backups, func(i, j int) bool { return out.Backups[i].Created.Before(out.Backups[j].Created) })
+	for _, t := range n.tasks {
+		if s := n.pool.snapshots[t.Snapshot]; s != nil {
+			out.AppData += s.Size
+		}
+	}
+	for _, rs := range n.pool.restores {
+		rv := restore{Restore: rs}
+		if a := n.agents[rs.AgentID]; a != nil {
+			rv.Machine = a.Name
+		}
+		out.Restores = append(out.Restores, rv)
+	}
+	sort.Slice(out.Restores, func(i, j int) bool { return out.Restores[i].Created.After(out.Restores[j].Created) })
+	if len(out.Restores) > 10 {
+		out.Restores = out.Restores[:10]
+	}
+	writeJSON(w, out)
 }

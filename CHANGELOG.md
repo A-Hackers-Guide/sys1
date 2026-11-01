@@ -2,6 +2,23 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.3.0] - 2026-11-01
+
+Pooled storage.
+
+### Added
+
+- **Pooled storage.** Every machine lends disk (10 GB by default, always leaving 5 GB free). Data is cut into chunks, encrypted with AES-256-GCM on the machine it comes from, named by its SHA-256, and kept in N copies on different machines. Holders can't read what they store. Lost copies are re-made automatically, extra copies trimmed, unused data deleted, and corrupt copies detected and replaced.
+- **App data moves with apps.** Package `volumes` are snapshotted every minute and on stop (containers are paused for a consistent copy) and restored before the app starts on another machine. New `localVolumes` stay on the machine for big media, caches and models.
+- **Backups.** Keep a folder on any of your machines backed up with N copies and M versions; back up now; restore any version into a new folder on any of your machines.
+- **Dashboard Storage tab**: protection level, space lent per machine, backups, restores, and the recovery key. Apps show when their data was last saved.
+- `sys0 join --storage-gb`, a disk-share slider in the setup wizard, and `sys1 --copies` / `--staging-gb`.
+- docs/STORAGE.md.
+
+### Changed
+
+- Builtin packages split their volumes into pooled (settings) and local (media, caches, models).
+
 ## [0.2.0] - 2026-10-31
 
 Installers everywhere.

@@ -12,13 +12,15 @@
 | An app crashes **5 times in a row** | The watchdog stops it, reads its checkpoint, and reports failure. The node excludes that machine and moves the app elsewhere **with the checkpoint**. | The checkpoint (≤ 8 MB) moves with the app. |
 | A machine goes offline (sleep, shutdown, network loss) | After 15s the node moves its apps elsewhere, resending the last checkpoint it cached. | The cached checkpoint moves with the app. |
 | A machine never confirms an assignment | After 20s the task goes to another machine. | Nothing was running yet. |
+| An app with pooled volumes moves (any reason above) | The new machine restores the app's latest volume snapshot before starting it. | Changes since the last snapshot (at most about a minute) are lost; everything before is kept, in N copies. |
+| A machine holding pool copies disappears for 10+ minutes | The node re-makes its copies on other machines. | Data survives as long as one copy does. |
 | A machine comes back after its work moved | The node tells it to cancel its stale copy; any result it sends is rejected as stale. | No split-brain: only the newest attempt can report. |
 
 ### What is *not* guaranteed yet
 
 - **Live memory.** An app's in-RAM state is lost when its machine dies. Apps that care should write checkpoints (below). Live migration of running processes is not feasible across different OSes; see [Architecture](ARCHITECTURE.md#why-not-one-giant-vm-across-all-machines).
-- **Large app data.** Volumes (e.g. Jellyfin's config) live on the machine the app runs on. When the app moves, that data does not move yet. **Replicated pooled storage** is the top item on the [roadmap](ROADMAP.md).
-- **Node redundancy.** There is one node. If its disk dies, its journal dies with it. Back up the node's data directory; multi-node replication is on the roadmap.
+- **Local volumes.** Volumes a package marks as local (big media libraries, caches, AI models) stay on the machine the app ran on. Pooled volumes move; see [Storage](STORAGE.md).
+- **Node redundancy.** There is one node. If its disk dies, its journal dies with it, including the list of snapshots in pooled storage (#27). Back up the node's data directory; multi-node replication is on the roadmap.
 
 ## Fast save: the journal
 
