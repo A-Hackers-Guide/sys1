@@ -14,13 +14,14 @@
 | A machine never confirms an assignment | After 20s the task goes to another machine. | Nothing was running yet. |
 | An app with pooled volumes moves (any reason above) | The new machine restores the app's latest volume snapshot before starting it. | Changes since the last snapshot (at most about a minute) are lost; everything before is kept, in N copies. |
 | A machine holding pool copies disappears for 10+ minutes | The node re-makes its copies on other machines. | Data survives as long as one copy does. |
+| The node fails, in a 3-node [cluster](CLUSTER.md) | Another node is elected within seconds and carries on with the same state; machines move to it on their own. | Every change a majority of nodes acknowledged survives. |
 | A machine comes back after its work moved | The node tells it to cancel its stale copy; any result it sends is rejected as stale. | No split-brain: only the newest attempt can report. |
 
 ### What is *not* guaranteed yet
 
 - **Live memory.** An app's in-RAM state is lost when its machine dies. Apps that care should write checkpoints (below). Live migration of running processes is not feasible across different OSes; see [Architecture](ARCHITECTURE.md#why-not-one-giant-vm-across-all-machines).
 - **Local volumes.** Volumes a package marks as local (big media libraries, caches, AI models) stay on the machine the app ran on. Pooled volumes move; see [Storage](STORAGE.md).
-- **Node redundancy.** There is one node. If its disk dies, its journal dies with it, including the list of snapshots in pooled storage (#27). Back up the node's data directory; multi-node replication is on the roadmap.
+- **Node redundancy.** A single node is a single point of failure, and its disk holds the list of snapshots in pooled storage (#27). Run a [cluster](CLUSTER.md) of 3 nodes so any one can fail, or back up the node's data directory.
 
 ## Fast save: the journal
 

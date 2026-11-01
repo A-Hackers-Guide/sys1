@@ -49,6 +49,8 @@ A package is one JSON file: a description for humans plus a spec for machines. A
 | `group` | A [group](BATCH.md#groups): a head plus workers on different machines. An input named `WORKERS` overrides the worker count. |
 | `gpu`, `minVramMB` | Use a GPU; require free GPU memory ([GPUs](BATCH.md#gpus)). |
 | `ownerOnly` | Never run on machines lent by other people. Use it for anything that opens an unauthenticated network service. |
+| `verify` | Batch jobs: run each piece on this many machines and accept output only when they agree ([details](BATCH.md#checking-results-on-several-machines)). |
+| `egress` | Hosts the app may reach over HTTP(S) on machines lent by others, like `["api.example.com", "*.cdn.example.com"]`. Leave it out if the app needs no outbound internet; `["*"]` if it needs unrestricted internet (it then runs on lent machines only where the lender allows). |
 
 ### Volumes
 

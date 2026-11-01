@@ -2,6 +2,23 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.5.0] - 2026-11-01
+
+Internet-scale pools.
+
+### Added
+
+- **Join from anywhere**: join codes list every node address (`--public-addr`, LAN, Tailscale/ZeroTier/WireGuard, router-mapped public address); clients try them in order, fail over, and adopt the node's current addresses from heartbeats.
+- **Reachable from the internet** switch: the node opens its port on the router with NAT-PMP or UPnP, renews and removes the mapping, and detects carrier-grade NAT.
+- **Clusters**: `sys1 --cluster` and `sys1 cluster join`; Raft-replicated state over mutually pinned TLS, a portable crash-safe Raft log on sys1's journal, automatic failover, standbys redirect clients (421), Nodes panel on the dashboard. docs/CLUSTER.md.
+- **Verified results**: `verify: N` runs each batch piece on N machines and accepts matching output (plaintext content hashes); disagreeing machines get marks and are kept off verified work at 3.
+- **Internet limits for lent machines**: networked apps run on an internal network behind a gateway (`sys0 egress-proxy`) that forwards declared ports and reaches only declared hosts, never private addresses. Packages declare `egress`; lenders can opt in to open internet (`sys0 join --open-internet`, or the wizard).
+
+### Changed
+
+- Snapshots include a plaintext content hash.
+- Built-in apps that need wide internet access declare `egress: ["*"]`.
+
 ## [0.4.0] - 2026-11-01
 
 AI and batch.

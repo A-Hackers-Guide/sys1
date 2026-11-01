@@ -54,7 +54,7 @@ On Linux and macOS this installs a per-user service if you are not root (no admi
 | `7443/tcp` | Client API (TLS 1.3) | Your other machines. Allow it through the node's firewall. |
 | `7700/tcp` | Dashboard | Only this machine (it listens on `127.0.0.1`). |
 
-Machines outside your home network need to reach port 7443, for example through a VPN such as Tailscale or WireGuard, or a port forward. Use `--public-addr host:port` so the join code contains an address they can reach.
+Machines outside your home network need to reach port 7443. The easiest ways: switch on **Add a machine → Reachable from the internet** (the node asks your router to open the port), or use a VPN such as Tailscale or ZeroTier, whose addresses go into the join code automatically. Details and the clustering guide: [Clusters and reaching the node](CLUSTER.md).
 
 ## 2. Add machines
 

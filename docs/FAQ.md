@@ -24,11 +24,11 @@ For most marketplace apps, yes, on the machines that should run them. Machines w
 
 ### What happens if the node goes down?
 
-Clients keep their apps running and keep retrying. When the node is back, everything continues where it was. The node's state is in a crash-safe journal. A multi-node setup with no single point of failure is on the roadmap.
+Clients keep their apps running and keep retrying. When the node is back, everything continues where it was, because the node's state is in a crash-safe journal. To avoid the downtime altogether, run a [cluster](CLUSTER.md) of three nodes.
 
 ### Does it work across the internet, not just my home network?
 
-Yes, if clients can reach the node's port 7443: a VPN like Tailscale or WireGuard is easiest, or a port forward. Use `sys1 --public-addr your.host:7443`. Built-in NAT traversal is on the roadmap.
+Yes. Switch on **Reachable from the internet** on the dashboard and the node asks your router to open its port (NAT-PMP or UPnP). If your provider uses carrier-grade NAT, the dashboard says so; use Tailscale or ZeroTier, which work anywhere. See [Clusters and reaching the node](CLUSTER.md).
 
 ### Why is it public domain?
 
@@ -45,3 +45,11 @@ The dashboard is bound to the node machine for safety. To reach it from elsewher
 ### How do I uninstall?
 
 `sys0 uninstall` (or `sys1 uninstall`) removes the service. Then delete the binary and, if you like, the data directory listed by `sys0 status`.
+
+### What if the node's machine dies?
+
+With one node, the pool stops scheduling until it's back, and you need its data directory to recover pooled storage. Run three nodes as a [cluster](CLUSTER.md) and any one can fail: another takes over within seconds with everything intact.
+
+### Can apps from someone else's pool misuse my internet connection?
+
+Not by default. On a machine you lend, apps reach only the websites their package lists, through a gateway sys0 controls, and never your home network. Only if you choose "let shared apps use my internet freely" can they do more.

@@ -98,6 +98,15 @@ Unknown or removed machines get `401`.
 
 Heartbeats carry a `storage` report (`quotaBytes`, `usedBytes`, `chunks`, plus `stored` and `missing` chunk IDs since the last one). Responses may carry `fetch`, `upload`, `drop` (chunk IDs), `inventory`, `backups`, `restores`, and `hurry` (heartbeat again in about a second). Task assignments for apps with volumes carry `dataKey` and `restore` (the snapshot to restore first). See [Storage](STORAGE.md).
 
+### Clusters
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/cluster/join` | `{"token"}` → the cluster's certificate, key and pool key, for a node joining with `sys1 cluster join` |
+| `POST /api/v1/cluster/add` | `{"token", "id", "name", "raftAddr", "apiAddrs"}`: a joined node, now running, asks to become a voting member |
+
+A standby node answers every other client request with **421 Misdirected Request**; clients then try the next address. Heartbeat responses carry `nodeAddrs`, the addresses the node can currently be reached on, and clients adopt them.
+
 ### `GET /healthz`
 
 → `200 ok`
@@ -143,6 +152,8 @@ Heartbeats carry a `storage` report (`quotaBytes`, `usedBytes`, `chunks`, plus `
   "minVramMB": 8000,
   "shards": 0,
   "ownerOnly": false,
+  "verify": 0,
+  "egress": ["api.example.com"],
   "group": { "workers": 2, "peerPort": 50052, "worker": { …TaskSpec… } }
 }
 ```

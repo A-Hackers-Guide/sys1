@@ -55,12 +55,14 @@ Next for storage: erasure coding (less space than full copies), block-level dedu
 
 Next for AI: GPU builds of the llama.cpp image (CUDA, Vulkan), and more group packages.
 
-## 🌍 v0.5: Internet-scale pools
+## ✅ v0.5: Internet-scale pools (done)
 
-- Built-in NAT traversal and relays (WireGuard-based mesh), so machines anywhere join without port forwarding
-- Multiple nodes with replicated state (Raft), so there is no single point of failure
-- Public community pools with reputation and redundant execution to catch cheaters
-- Per-machine egress policy (block SMTP, rate limits, allow-lists)
+- ✅ Join from anywhere: join codes with every address (LAN, VPN, public), client failover, router port mapping (NAT-PMP/UPnP) with carrier-grade NAT detection
+- ✅ Clusters: several nodes with Raft-replicated state, automatic failover, clients follow the leader
+- ✅ Verified results: pieces checked on several machines, reputation for machines that disagree
+- ✅ Internet limits for lent machines: sandbox network, gateway with per-package host lists, the lender's home network always off-limits
+
+Still open: a relay for machines that can't reach the node directly even with a VPN (#14), and recovering pooled storage's catalog on a single node that lost its disk (#27).
 
 ## 🎮 v0.6: Cloud gaming and desktops
 

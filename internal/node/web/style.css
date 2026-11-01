@@ -40,6 +40,10 @@ body {
 a { color: var(--accent); }
 code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
 pre { background: var(--track); padding: 12px; border-radius: 10px; overflow: auto; white-space: pre-wrap; }
+/* Join codes and commands are long single words: let them break anywhere. */
+code, pre { overflow-wrap: anywhere; }
+.copyrow input { min-width: 0; }
+.panel, .card, .item .grow { min-width: 0; }
 .hidden { display: none !important; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }

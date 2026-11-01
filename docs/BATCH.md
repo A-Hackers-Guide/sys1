@@ -21,6 +21,12 @@ Each piece gets:
 
 and decides from those which part of the work is its own. For example, frames `index, index+N, index+2N, …`.
 
+### Checking results on several machines
+
+On machines lent by people you don't know, a machine could return wrong results, by accident or on purpose. Add `"verify": N` (2 to 5) and each piece runs on **N different machines**. It is accepted only when N of them produced the same output, compared by a hash of the plain contents (paths, permissions, file contents). Until they agree, extra copies run on other machines, up to N+2 in total; after that, the piece is marked as failed.
+
+A machine whose output disagrees with the accepted answer gets a mark on its record, shown on the dashboard. At 3 marks it is kept off verified work. In the built-in Batch job package, choose how many machines check each piece when you deploy.
+
 ### Results
 
 Give the package a pooled volume, such as `"volumes": ["/output"]`, and write results there. Each piece's output is saved to [pooled storage](STORAGE.md) when it finishes. On the dashboard, **Collect results** restores every piece's output into one folder on one of your machines:
