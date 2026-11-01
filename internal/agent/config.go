@@ -23,6 +23,10 @@ type Config struct {
 	// StorageGB is the disk space this machine lends to pooled storage.
 	// sys0 also always leaves 5 GB of the disk free.
 	StorageGB int `json:"storageGB"`
+	// OpenInternet lets apps from other people's pools use this machine's
+	// internet freely. Off: they reach only the hosts their package lists,
+	// through sys0's gateway.
+	OpenInternet bool `json:"openInternet,omitempty"`
 }
 
 // DefaultStorageGB is lent when the owner has not chosen a size.

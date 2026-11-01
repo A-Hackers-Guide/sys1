@@ -33,6 +33,9 @@
     },
     "memoryMB": 2048,
     "gpu": true,
-    "service": true
+    "service": true,
+    "egress": [
+      "*"
+    ]
   }
 }

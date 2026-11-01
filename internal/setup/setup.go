@@ -65,11 +65,12 @@ func Run(ctx context.Context, opts Options) error {
 	})
 	mux.HandleFunc("POST /"+key+"/api/finish", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			JoinCode  string         `json:"joinCode"`
-			Name      string         `json:"name"`
-			Trust     protocol.Trust `json:"trust"`
-			MaxTasks  int            `json:"maxTasks"`
-			StorageGB *int           `json:"storageGB"`
+			JoinCode     string         `json:"joinCode"`
+			Name         string         `json:"name"`
+			Trust        protocol.Trust `json:"trust"`
+			MaxTasks     int            `json:"maxTasks"`
+			StorageGB    *int           `json:"storageGB"`
+			OpenInternet bool           `json:"openInternet"`
 		}
 		reply := func(ok bool, msg string) { json.NewEncoder(w).Encode(map[string]any{"ok": ok, "message": msg}) }
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
@@ -97,6 +98,7 @@ func Run(ctx context.Context, opts Options) error {
 		if req.StorageGB != nil && *req.StorageGB >= 0 {
 			cfg.StorageGB = *req.StorageGB
 		}
+		cfg.OpenInternet = req.OpenInternet && req.Trust == protocol.TrustCommunity
 		if err := agent.SaveConfig(opts.DataDir, cfg); err != nil {
 			reply(false, "Joined, but could not save settings: "+err.Error())
 			return

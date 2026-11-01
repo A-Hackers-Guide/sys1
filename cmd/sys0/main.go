@@ -15,12 +15,15 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/agent"
 	"github.com/A-Hackers-Guide/sys1/internal/cli"
+	"github.com/A-Hackers-Guide/sys1/internal/egress"
 	"github.com/A-Hackers-Guide/sys1/internal/paths"
 	"github.com/A-Hackers-Guide/sys1/internal/priority"
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
@@ -39,6 +42,8 @@ Usage:
                               "owner" if you run the node yourself (default: community)
         --max-tasks <n>       most tasks at once (default 4)
         --storage-gb <n>      disk space to lend for pooled storage (default 10, 0 = none)
+        --open-internet       let apps from other people's pools use this machine's
+                              internet freely (default: only the hosts each app lists)
         --no-service          do not install the background service
   sys0 run                  run in the foreground (what the service runs)
   sys0 status               show settings and service state
@@ -67,6 +72,11 @@ func main() {
 	noService := fs.Bool("no-service", false, "do not install the service")
 	storageGB := fs.Int("storage-gb", agent.DefaultStorageGB, "disk space to lend for pooled storage, in GB (0 = none)")
 	noBrowser := fs.Bool("no-browser", false, "do not open a browser")
+	openInternet := fs.Bool("open-internet", false, "let apps from other people's pools use this machine's internet freely")
+	listenAddr := fs.String("listen", ":3128", "egress-proxy: proxy address")
+	allow := fs.String("allow", "", "egress-proxy: hosts apps may reach, comma-separated")
+	var forwards multiFlag
+	fs.Var(&forwards, "forward", "egress-proxy: port:host:port to forward inbound (repeatable)")
 	fs.Usage = func() { fmt.Fprintf(os.Stderr, usage, paths.DataDir("sys0")) }
 	// Allow `sys0 join <code> --name x` as well as `sys0 join --name x <code>`.
 	var positional []string
@@ -107,7 +117,7 @@ func main() {
 			err = errors.New("usage: sys0 join <join code>")
 			break
 		}
-		err = join(positional[0], *dataDir, *name, protocol.Trust(*trust), *maxTasks, *storageGB)
+		err = join(positional[0], *dataDir, *name, protocol.Trust(*trust), *maxTasks, *storageGB, *openInternet)
 		if err == nil && !*noService {
 			err = svc.Install()
 		}
@@ -120,6 +130,8 @@ func main() {
 		}
 	case "run":
 		err = svc.RunManaged()
+	case "egress-proxy":
+		err = egressProxy(*listenAddr, *allow, forwards)
 	case "install":
 		err = svc.Install()
 	case "uninstall":
@@ -169,7 +181,7 @@ func runAgent(ctx context.Context, dataDir string, log *slog.Logger) error {
 	}
 }
 
-func join(code, dataDir, name string, trust protocol.Trust, maxTasks, storageGB int) error {
+func join(code, dataDir, name string, trust protocol.Trust, maxTasks, storageGB int, openInternet bool) error {
 	jc, err := protocol.ParseJoinCode(code)
 	if err != nil {
 		return err
@@ -190,6 +202,7 @@ func join(code, dataDir, name string, trust protocol.Trust, maxTasks, storageGB 
 	if storageGB >= 0 {
 		cfg.StorageGB = storageGB
 	}
+	cfg.OpenInternet = openInternet
 	return agent.SaveConfig(dataDir, cfg)
 }
 
@@ -207,4 +220,43 @@ func status(dataDir string, svc *cli.Service) {
 	fmt.Println("  trust:  ", cfg.Trust)
 	fmt.Println("  max tasks:", cfg.MaxTasks)
 	fmt.Println("  storage: ", cfg.StorageGB, "GB lent to the pool")
+}
+
+type multiFlag []string
+
+func (m *multiFlag) String() string     { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
+
+// egressProxy runs the sandbox gateway (inside sys1's container image).
+func egressProxy(listen, allow string, forwards []string) error {
+	ctx, cancel := cli.SignalContext()
+	defer cancel()
+	var hosts []string
+	for _, h := range strings.Split(allow, ",") {
+		if h = strings.TrimSpace(h); h != "" {
+			if !egress.ValidHost(h) {
+				return fmt.Errorf("invalid host %q", h)
+			}
+			hosts = append(hosts, h)
+		}
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	for _, f := range forwards {
+		l, target, err := egress.ParseForward(f)
+		if err != nil {
+			return err
+		}
+		ln, err := net.Listen("tcp", l)
+		if err != nil {
+			return err
+		}
+		go egress.Forward(ctx, ln, target)
+	}
+	srv := &http.Server{Addr: listen, Handler: &egress.Proxy{Policy: egress.Policy{Hosts: hosts}, Log: log}, ReadHeaderTimeout: 10 * time.Second}
+	go func() { <-ctx.Done(); srv.Close() }()
+	log.Info("egress gateway ready", "allow", hosts, "forwards", forwards)
+	if err := srv.ListenAndServe(); err != nil && ctx.Err() == nil {
+		return err
+	}
+	return nil
 }

@@ -23,6 +23,9 @@ func canRun(a *Agent, s protocol.TaskSpec) bool {
 	if s.OwnerOnly && a.Trust != protocol.TrustOwner {
 		return false
 	}
+	if s.Sandboxed(a.Trust, a.Resources.OpenInternet) && s.SandboxProblem() != "" {
+		return false
+	}
 	if s.MinVRAMMB > 0 {
 		if g, ok := a.Resources.BestGPU(s.Kind); !ok || g.Avail() < s.MinVRAMMB {
 			return false

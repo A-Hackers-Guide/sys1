@@ -7,6 +7,29 @@
   "icon": "☁️",
   "author": "sys1",
   "homepage": "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/",
-  "inputs": [{"name": "TUNNEL_TOKEN", "label": "Tunnel token", "secret": true}],
-  "run": {"kind": "container", "image": "cloudflare/cloudflared:latest", "command": ["tunnel", "--no-autoupdate", "run"], "env": {"TUNNEL_TOKEN": "${TUNNEL_TOKEN}"}, "network": true, "memoryMB": 128, "service": true}
+  "inputs": [
+    {
+      "name": "TUNNEL_TOKEN",
+      "label": "Tunnel token",
+      "secret": true
+    }
+  ],
+  "run": {
+    "kind": "container",
+    "image": "cloudflare/cloudflared:latest",
+    "command": [
+      "tunnel",
+      "--no-autoupdate",
+      "run"
+    ],
+    "env": {
+      "TUNNEL_TOKEN": "${TUNNEL_TOKEN}"
+    },
+    "network": true,
+    "memoryMB": 128,
+    "service": true,
+    "egress": [
+      "*"
+    ]
+  }
 }

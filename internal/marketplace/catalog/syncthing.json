@@ -21,6 +21,9 @@
       "/var/syncthing"
     ],
     "memoryMB": 256,
-    "service": true
+    "service": true,
+    "egress": [
+      "*"
+    ]
   }
 }

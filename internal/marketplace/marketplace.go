@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -148,8 +149,14 @@ func (m Manifest) Permissions() []string {
 	} else {
 		p = append(p, "Runs in a sandboxed container")
 	}
-	if r.Network {
-		p = append(p, "Uses the network")
+	switch {
+	case !r.Network:
+	case slices.Contains(r.Egress, "*"):
+		p = append(p, "Needs unrestricted internet (on machines lent by others, only where the lender allows it)")
+	case len(r.Egress) > 0:
+		p = append(p, "Reaches only "+strings.Join(r.Egress, ", ")+" on machines lent by others")
+	default:
+		p = append(p, "Uses the network (no outbound internet on machines lent by others)")
 	}
 	for _, port := range r.Ports {
 		p = append(p, "Opens port "+strings.SplitN(port, ":", 2)[0])

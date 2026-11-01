@@ -23,6 +23,9 @@
       "/podcasts"
     ],
     "memoryMB": 512,
-    "service": true
+    "service": true,
+    "egress": [
+      "*"
+    ]
   }
 }

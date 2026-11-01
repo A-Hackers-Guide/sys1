@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"regexp"
 	"strings"
 	"time"
@@ -54,8 +55,9 @@ type Resources struct {
 	GPUs           []string `json:"gpus,omitempty"` // display names
 	GPUInfo        []GPU    `json:"gpuInfo,omitempty"`
 	OnBattery      bool     `json:"onBattery"`
-	Runtimes       []string `json:"runtimes,omitempty"` // "docker", "podman", "exec"
-	Addr           string   `json:"addr,omitempty"`     // address other machines can reach this one on
+	Runtimes       []string `json:"runtimes,omitempty"`     // "docker", "podman", "exec"
+	Addr           string   `json:"addr,omitempty"`         // address other machines can reach this one on
+	OpenInternet   bool     `json:"openInternet,omitempty"` // the lender lets apps use the internet freely
 }
 
 // GPU is one graphics or AI accelerator.
@@ -140,9 +142,14 @@ type TaskSpec struct {
 	MinVRAMMB       int      `json:"minVramMB,omitempty"` // only run where a usable GPU has this much free memory
 	Service         bool     `json:"service,omitempty"`   // runs forever and is restarted on exit
 	OwnerOnly       bool     `json:"ownerOnly,omitempty"` // only on machines whose owner said "mine" (e.g. unauthenticated network services)
-	OS              []string `json:"os,omitempty"`        // exec only: OSes the program runs on
-	Shards          int      `json:"shards,omitempty"`    // a batch job of this many pieces (see docs/BATCH.md)
-	Verify          int      `json:"verify,omitempty"`    // batch: run each piece on this many machines and accept matching output
+	// Egress lists the internet hosts the app may reach over HTTP(S) when
+	// it runs on a machine lent by someone else ("*.example.com" allowed).
+	// "*" means it needs unrestricted internet, which lent machines only
+	// give when their owner allows it.
+	Egress []string `json:"egress,omitempty"`
+	OS     []string `json:"os,omitempty"`     // exec only: OSes the program runs on
+	Shards int      `json:"shards,omitempty"` // a batch job of this many pieces (see docs/BATCH.md)
+	Verify int      `json:"verify,omitempty"` // batch: run each piece on this many machines and accept matching output
 	// Group makes this spec the head of a group of workers on other
 	// machines (see docs/BATCH.md).
 	Group *GroupSpec `json:"group,omitempty"`
@@ -221,6 +228,11 @@ func (s TaskSpec) Validate() error {
 		}
 		if err := g.Worker.Validate(); err != nil {
 			return fmt.Errorf("worker: %w", err)
+		}
+	}
+	for _, h := range s.Egress {
+		if h != "*" && !validEgressHost(h) {
+			return fmt.Errorf("invalid egress host %q", h)
 		}
 	}
 	if s.MinVRAMMB < 0 {
@@ -408,4 +420,45 @@ func ParseJoinCode(s string) (JoinCode, error) {
 		return j, errors.New("join code is incomplete; copy it again from the node")
 	}
 	return j, nil
+}
+
+// Sandboxed reports whether an app runs behind the egress gateway on a
+// machine: lent machines whose owner hasn't opened their internet, for
+// apps that use the network.
+func (s TaskSpec) Sandboxed(trust Trust, openInternet bool) bool {
+	return s.Kind == KindContainer && s.Network && trust != TrustOwner && !openInternet
+}
+
+// SandboxProblem says why an app can't run sandboxed, or "" if it can.
+func (s TaskSpec) SandboxProblem() string {
+	for _, h := range s.Egress {
+		if h == "*" {
+			return "needs unrestricted internet, which this machine's owner doesn't allow"
+		}
+	}
+	for _, p := range s.Ports {
+		if strings.HasSuffix(p, "/udp") {
+			return "uses UDP ports, which the sandbox gateway doesn't forward"
+		}
+	}
+	return ""
+}
+
+// validEgressHost mirrors egress.ValidHost without importing it.
+func validEgressHost(h string) bool {
+	h = strings.TrimPrefix(h, "*.")
+	if h == "" || len(h) > 253 || !strings.Contains(h, ".") || net.ParseIP(h) != nil {
+		return false
+	}
+	for _, label := range strings.Split(h, ".") {
+		if label == "" || len(label) > 63 {
+			return false
+		}
+		for _, r := range label {
+			if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+				return false
+			}
+		}
+	}
+	return true
 }

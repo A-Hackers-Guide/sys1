@@ -213,7 +213,15 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 			}
 		}
 		a.mu.Unlock()
-		cmd = exec.Command(rt, containerArgs(t, name, dir, rt, a.cfg.Trust, gpu)...)
+		var sb *sandbox
+		if t.Spec.Sandboxed(a.cfg.Trust, a.cfg.OpenInternet) {
+			sb = sandboxFor(rt, t)
+			if err := sb.start(t); err != nil {
+				return -1, err
+			}
+			defer sb.stop()
+		}
+		cmd = exec.Command(rt, containerArgs(t, name, dir, rt, a.cfg.Trust, gpu, sb)...)
 		stop = func() {
 			sctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
@@ -268,7 +276,7 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 // lowest CPU weight, a process limit and no privilege escalation; machines
 // shared by other people also drop every capability except a small,
 // common set.
-func containerArgs(t protocol.Task, name, dir, rt string, trust protocol.Trust, gpu string) []string {
+func containerArgs(t protocol.Task, name, dir, rt string, trust protocol.Trust, gpu string, sb *sandbox) []string {
 	s := t.Spec
 	state := filepath.Join(dir, "state")
 	args := []string{"run", "--rm", "--name", name, "--label", "sys1.task=" + t.ID, "--init",
@@ -285,11 +293,19 @@ func containerArgs(t protocol.Task, name, dir, rt string, trust protocol.Trust, 
 	if s.MemoryMB > 0 {
 		args = append(args, "--memory", strconv.Itoa(s.MemoryMB)+"m")
 	}
-	if !s.Network {
+	switch {
+	case sb != nil:
+		// Behind the sandbox gateway: no direct route, no published ports.
+		args = append(args, "--network", sb.network)
+		for _, e := range sb.proxyEnv() {
+			args = append(args, "-e", e)
+		}
+	case !s.Network:
 		args = append(args, "--network", "none")
-	}
-	for _, p := range s.Ports {
-		args = append(args, "-p", p)
+	default:
+		for _, p := range s.Ports {
+			args = append(args, "-p", p)
+		}
 	}
 	// Pooled volumes are folders sys0 can snapshot; local ones are named
 	// volumes, which work the same on every OS and survive restarts.

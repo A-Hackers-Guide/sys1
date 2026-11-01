@@ -140,6 +140,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, error) {
 	res := a.Sample(a.cfg.Trust == protocol.TrustOwner)
+	res.OpenInternet = a.cfg.OpenInternet
 	a.mu.Lock()
 	a.last = res
 	req := protocol.HeartbeatRequest{Resources: res, Version: version.Version, Storage: a.st.report()}
@@ -191,6 +192,11 @@ func (a *Agent) refuse(t protocol.Task) string {
 	}
 	if t.Spec.OwnerOnly && a.cfg.Trust != protocol.TrustOwner {
 		return "this app runs only on its owner's own machines"
+	}
+	if t.Spec.Sandboxed(a.cfg.Trust, a.cfg.OpenInternet) {
+		if p := t.Spec.SandboxProblem(); p != "" {
+			return "this app " + p
+		}
 	}
 	switch t.Spec.Kind {
 	case protocol.KindExec:

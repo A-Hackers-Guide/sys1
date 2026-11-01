@@ -71,6 +71,10 @@ jobs:
           CGO_ENABLED=0 go build -o ctx/linux/amd64/sys0 ./cmd/sys0
           CGO_ENABLED=0 go build -o ctx/linux/amd64/sys1 ./cmd/sys1
           docker build --platform linux/amd64 -f packaging/docker/Dockerfile -t sys1:test ctx
+      - name: Sandbox for shared machines, against real Docker
+        run: |
+          docker tag sys1:test sys1-gateway:test
+          SYS1_DOCKER_TESTS=1 SYS1_GATEWAY_IMAGE=sys1-gateway:test go test -count=1 -v -run 'TestSandbox' ./internal/agent
       - name: Run it and check the node answers
         run: |
           docker run -d --name sys1 -p 7443:7443 -p 127.0.0.1:7700:7700 sys1:test

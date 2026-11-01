@@ -8,8 +8,30 @@
   "author": "sys1",
   "homepage": "https://docs.github.com/actions/hosting-your-own-runners",
   "inputs": [
-    {"name": "REPO_URL", "label": "Repository URL (https://github.com/you/repo)"},
-    {"name": "RUNNER_TOKEN", "label": "Runner registration token", "secret": true}
+    {
+      "name": "REPO_URL",
+      "label": "Repository URL (https://github.com/you/repo)"
+    },
+    {
+      "name": "RUNNER_TOKEN",
+      "label": "Runner registration token",
+      "secret": true
+    }
   ],
-  "run": {"kind": "container", "image": "myoung34/github-runner:latest", "env": {"REPO_URL": "${REPO_URL}", "RUNNER_TOKEN": "${RUNNER_TOKEN}", "RUNNER_NAME_PREFIX": "sys1", "EPHEMERAL": "true"}, "network": true, "memoryMB": 2048, "service": true}
+  "run": {
+    "kind": "container",
+    "image": "myoung34/github-runner:latest",
+    "env": {
+      "REPO_URL": "${REPO_URL}",
+      "RUNNER_TOKEN": "${RUNNER_TOKEN}",
+      "RUNNER_NAME_PREFIX": "sys1",
+      "EPHEMERAL": "true"
+    },
+    "network": true,
+    "memoryMB": 2048,
+    "service": true,
+    "egress": [
+      "*"
+    ]
+  }
 }

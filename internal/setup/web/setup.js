@@ -59,6 +59,7 @@ $("#finish").addEventListener("click", async () => {
         trust: document.querySelector("input[name=trust]:checked").value,
         maxTasks: Number($("#max").value),
         storageGB: Number($("#disk").value),
+        openInternet: $("#open-internet").checked,
       }),
     });
     const res = await r.json();
