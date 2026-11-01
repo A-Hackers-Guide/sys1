@@ -139,6 +139,9 @@ func (s *Service) RunManaged() error {
 	if err != nil {
 		return err
 	}
+	if !service.Interactive() {
+		ensureRecovery(s.Name)
+	}
 	return svc.Run()
 }
 
