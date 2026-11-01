@@ -46,3 +46,34 @@ func TestValidateRejectsInjection(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestVMValidation(t *testing.T) {
+	ok := TaskSpec{Kind: KindVM, MemoryMB: 512, Ports: []string{"2222:22"}, Network: true,
+		VM: &VMSpec{Image: "https://example.com/os.qcow2", SHA256: strings.Repeat("a", 64)}}
+	if err := ok.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	bad := []func(*TaskSpec){
+		func(s *TaskSpec) { s.VM = nil },
+		func(s *TaskSpec) { s.VM = &VMSpec{Image: "http://insecure/os.img", SHA256: strings.Repeat("a", 64)} },
+		func(s *TaskSpec) { s.VM = &VMSpec{Image: "https://x/os.img", SHA256: "abc"} },
+		func(s *TaskSpec) { s.MemoryMB = 0 },
+		func(s *TaskSpec) { s.Ports = []string{"53:53/udp"} },
+		func(s *TaskSpec) {
+			s.VM = &VMSpec{Image: "https://x/os.img", SHA256: strings.Repeat("a", 64), Arch: "mips"}
+		},
+	}
+	for i, f := range bad {
+		s := ok
+		vm := *ok.VM
+		s.VM = &vm
+		f(&s)
+		if s.Validate() == nil {
+			t.Errorf("case %d accepted", i)
+		}
+	}
+	c := TaskSpec{Kind: KindContainer, Image: "x", VM: &VMSpec{}}
+	if c.Validate() == nil {
+		t.Error("vm settings accepted on a container")
+	}
+}

@@ -85,6 +85,22 @@ jobs:
           docker exec sys1 sys1 join-code | grep -q "^sys1-join:"
           docker logs sys1 2>&1 | tail -5
 
+  vm:
+    name: Virtual machine boots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install QEMU and allow KVM
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q qemu-system-x86 qemu-utils
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; echo "KVM available"; else echo "no KVM: software emulation"; fi
+      - name: Boot a VM through sys0
+        run: SYS1_QEMU_TESTS=1 go test -count=1 -v -run 'TestVMBoots|TestCloudInit' ./internal/agent
+
   goreleaser-check:
     name: Release config
     runs-on: ubuntu-latest

@@ -81,6 +81,14 @@ func probeRuntimes() []string {
 			rts = append(rts, rt)
 		}
 	}
+	// QEMU, for virtual machines: one runtime per guest architecture.
+	if _, err := exec.LookPath("qemu-img"); err == nil {
+		for _, arch := range []string{"x86_64", "aarch64"} {
+			if _, err := exec.LookPath("qemu-system-" + arch); err == nil {
+				rts = append(rts, "qemu-"+arch)
+			}
+		}
+	}
 	return rts
 }
 

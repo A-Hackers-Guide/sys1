@@ -153,6 +153,14 @@ func (v *volumes) take(ctx context.Context) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	var freeze func() func()
+	if v.t.Spec.Kind == protocol.KindVM {
+		freeze = func() func() {
+			if p := v.a.vmFor(v.t.ID); p != nil {
+				return p.pause() // the guest freezes; its disk is consistent
+			}
+			return func() {}
+		}
+	}
 	if v.t.Spec.Kind == protocol.KindContainer {
 		freeze = func() func() {
 			// Pausing freezes the app for the moment files are read, so
@@ -200,7 +208,18 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 	state := filepath.Join(dir, "state")
 	var cmd *exec.Cmd
 	var stop func()
+	var vm *vmProc
+	grace := 15 * time.Second
 	switch t.Spec.Kind {
+	case protocol.KindVM:
+		c, p, err := a.prepareVM(ctx, t, dir)
+		if err != nil {
+			return -1, err
+		}
+		cmd, vm, stop, grace = c, p, p.powerdown, 90*time.Second // guests need time to shut down
+		defer p.close()
+		a.setVM(t.ID, p)
+		defer a.setVM(t.ID, nil)
 	case protocol.KindContainer:
 		rt := a.containerRuntime()
 		name := "sys1-" + t.ID
@@ -255,6 +274,11 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 	if err := cmd.Start(); err != nil {
 		return -1, err
 	}
+	if vm != nil {
+		if err := vm.started(); err != nil {
+			a.log.Warn("VM screen not ready", "task", t.ID, "err", err)
+		}
+	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	select {
@@ -265,7 +289,7 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 		select {
 		case err := <-done:
 			return exitCode(err), ctx.Err()
-		case <-time.After(15 * time.Second):
+		case <-time.After(grace):
 			cmd.Process.Kill()
 			return exitCode(<-done), ctx.Err()
 		}

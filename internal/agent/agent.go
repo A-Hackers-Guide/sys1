@@ -43,6 +43,7 @@ type Agent struct {
 
 	mu       sync.Mutex
 	running  map[string]*taskRun
+	vms      map[string]*vmProc
 	pending  []protocol.Result
 	last     protocol.Resources
 	tasksDir string
@@ -62,6 +63,7 @@ func New(dataDir string, cfg Config, log *slog.Logger) (*Agent, error) {
 		log:      log,
 		c:        newClient(cfg.Addrs(), cfg.Fingerprint),
 		running:  map[string]*taskRun{},
+		vms:      map[string]*vmProc{},
 		tasksDir: tasksDir(dataDir),
 	}
 	a.c.auth = cfg.AgentID + "." + cfg.Secret
@@ -145,7 +147,11 @@ func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, erro
 	a.last = res
 	req := protocol.HeartbeatRequest{Resources: res, Version: version.Version, Storage: a.st.report()}
 	for id, r := range a.running {
-		req.Running = append(req.Running, protocol.RunningTask{ID: id, Attempt: r.attempt})
+		rt := protocol.RunningTask{ID: id, Attempt: r.attempt}
+		if p := a.vms[id]; p != nil {
+			rt.Screen = p.screen
+		}
+		req.Running = append(req.Running, rt)
 	}
 	a.mu.Unlock()
 	var resp protocol.HeartbeatResponse
@@ -206,6 +212,13 @@ func (a *Agent) refuse(t protocol.Task) string {
 	case protocol.KindContainer:
 		if !a.last.HasContainers() {
 			return "no container runtime available"
+		}
+	case protocol.KindVM:
+		if a.cfg.Trust != protocol.TrustOwner {
+			return "virtual machines run only on their owner's own machines"
+		}
+		if !a.last.HasRuntime("qemu-" + vmArch(t.Spec.VM)) {
+			return "QEMU for this VM isn't installed here"
 		}
 	}
 	return ""
@@ -296,4 +309,20 @@ func (a *Agent) followNode(addrs []string) {
 	if err := SaveConfig(a.dataDir, a.cfg); err != nil {
 		a.log.Warn("could not save the node's new addresses", "err", err)
 	}
+}
+
+func (a *Agent) setVM(id string, p *vmProc) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if p == nil {
+		delete(a.vms, id)
+	} else {
+		a.vms[id] = p
+	}
+}
+
+func (a *Agent) vmFor(id string) *vmProc {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.vms[id]
 }

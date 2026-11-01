@@ -360,6 +360,9 @@ func (n *Node) handleHeartbeat(w http.ResponseWriter, r *http.Request, a *Agent)
 	reported := map[string]int{}
 	for _, rt := range req.Running {
 		reported[rt.ID] = rt.Attempt
+		if t := n.tasks[rt.ID]; t != nil && t.AgentID == a.ID {
+			t.Screen = rt.Screen
+		}
 	}
 	var resp protocol.HeartbeatResponse
 	for id, attempt := range reported {

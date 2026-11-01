@@ -146,6 +146,8 @@ func (m Manifest) Permissions() []string {
 	var p []string
 	if r.Kind == protocol.KindExec {
 		p = append(p, "Runs a native program (only on machines marked as yours)")
+	} else if r.Kind == protocol.KindVM {
+		p = append(p, "Runs a whole virtual machine with QEMU (only on your own machines)")
 	} else {
 		p = append(p, "Runs in a sandboxed container")
 	}
@@ -187,6 +189,7 @@ type Machine struct {
 	OS         string
 	Containers bool
 	Owner      bool
+	Runtimes   []string
 }
 
 // Compatible reports whether any connected machine can run the package,
@@ -220,6 +223,17 @@ func (m Manifest) Compatible(machines []Machine) (bool, string) {
 			return false, fmt.Sprintf("Needs %d machines with Docker or Podman", need)
 		}
 		return false, "Needs a machine with Docker or Podman"
+	case protocol.KindVM:
+		arch := "x86_64"
+		if m.Run.VM != nil && m.Run.VM.Arch != "" {
+			arch = m.Run.VM.Arch
+		}
+		for _, x := range machines {
+			if x.Owner && slices.Contains(x.Runtimes, "qemu-"+arch) {
+				return true, ""
+			}
+		}
+		return false, "Needs one of your own machines with QEMU installed"
 	case protocol.KindExec:
 		for _, x := range machines {
 			if !x.Owner {

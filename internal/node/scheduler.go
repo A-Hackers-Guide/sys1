@@ -32,6 +32,12 @@ func canRun(a *Agent, s protocol.TaskSpec) bool {
 		}
 	}
 	switch s.Kind {
+	case protocol.KindVM:
+		arch := "x86_64"
+		if s.VM != nil && s.VM.Arch != "" {
+			arch = s.VM.Arch
+		}
+		return a.Trust == protocol.TrustOwner && a.Resources.HasRuntime("qemu-"+arch)
 	case protocol.KindContainer:
 		return a.Resources.HasContainers()
 	case protocol.KindExec:
@@ -71,6 +77,18 @@ func score(a *Agent, s protocol.TaskSpec, load int) float64 {
 	}
 	if a.Local {
 		sc -= 5 // leave the node's own machine for the GUI when possible
+	}
+	if s.Kind == protocol.KindVM && s.VM != nil {
+		// A VM of the machine's own architecture gets hardware
+		// acceleration; any other is emulated, far slower.
+		native := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[r.Arch]
+		want := s.VM.Arch
+		if want == "" {
+			want = "x86_64"
+		}
+		if native == want {
+			sc += 50
+		}
 	}
 	return sc
 }

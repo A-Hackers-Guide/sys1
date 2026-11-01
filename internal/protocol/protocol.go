@@ -121,6 +121,7 @@ type Kind string
 const (
 	KindContainer Kind = "container" // an OCI image via docker or podman
 	KindExec      Kind = "exec"      // a native program; owner machines only
+	KindVM        Kind = "vm"        // a whole operating system under QEMU; owner machines only
 )
 
 // TaskSpec describes what to run. Marketplace packages carry one.
@@ -153,6 +154,21 @@ type TaskSpec struct {
 	// Group makes this spec the head of a group of workers on other
 	// machines (see docs/BATCH.md).
 	Group *GroupSpec `json:"group,omitempty"`
+	// VM describes the virtual machine for kind "vm" (see docs/VMS.md).
+	VM *VMSpec `json:"vm,omitempty"`
+}
+
+// VMSpec is a virtual machine run with QEMU. Its disk is a copy-on-write
+// layer over a downloaded base image; with a pooled volume it moves to
+// another machine together with the VM.
+type VMSpec struct {
+	Image     string `json:"image"`               // https URL of a disk image (qcow2 or raw)
+	SHA256    string `json:"sha256"`              // of the image, checked after download
+	Arch      string `json:"arch,omitempty"`      // x86_64 (default) or aarch64
+	CPUs      int    `json:"cpus,omitempty"`      // default 2
+	DiskGB    int    `json:"diskGB,omitempty"`    // size the guest sees, default 20
+	CloudInit string `json:"cloudInit,omitempty"` // cloud-init user-data for the first boot
+	Screen    bool   `json:"screen,omitempty"`    // a display, viewable from the dashboard
 }
 
 // GroupSpec describes a group's workers. Worker i runs on its own machine
@@ -169,6 +185,7 @@ var (
 	imageRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$`)
 	envRe   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	pathRe  = regexp.MustCompile(`^/[a-zA-Z0-9._/-]*$`)
+	shaRe   = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
 // Validate rejects specs that are malformed or could smuggle options into
@@ -186,8 +203,39 @@ func (s TaskSpec) Validate() error {
 		if len(s.Ports) > 0 || len(s.LocalVolumes) > 0 {
 			return errors.New("ports and local volumes apply to containers only")
 		}
+	case KindVM:
+		v := s.VM
+		if v == nil {
+			return errors.New("a vm needs its vm settings")
+		}
+		if !strings.HasPrefix(v.Image, "https://") || strings.ContainsAny(v.Image, " ,\n") {
+			return errors.New("vm image must be an https URL")
+		}
+		if !shaRe.MatchString(v.SHA256) {
+			return errors.New("vm sha256 must be 64 hex characters")
+		}
+		if v.Arch != "" && v.Arch != "x86_64" && v.Arch != "aarch64" {
+			return fmt.Errorf("vm arch %q: use x86_64 or aarch64", v.Arch)
+		}
+		if v.CPUs < 0 || v.CPUs > 64 || v.DiskGB < 0 || v.DiskGB > 4096 {
+			return errors.New("vm cpus or diskGB out of range")
+		}
+		if s.MemoryMB < 128 {
+			return errors.New("a vm needs memoryMB of at least 128")
+		}
+		if len(s.LocalVolumes) > 0 || len(s.Volumes) > 1 {
+			return errors.New("a vm can have one pooled volume (its disk) and no local volumes")
+		}
+		for _, p := range s.Ports {
+			if strings.HasSuffix(p, "/udp") {
+				return errors.New("vm port forwards are tcp only")
+			}
+		}
 	default:
 		return fmt.Errorf("unknown kind %q", s.Kind)
+	}
+	if s.VM != nil && s.Kind != KindVM {
+		return errors.New("vm settings are only for kind vm")
 	}
 	for _, p := range s.Ports {
 		if !portRe.MatchString(p) {
@@ -282,6 +330,14 @@ type RegisterResponse struct {
 type RunningTask struct {
 	ID      string `json:"id"`
 	Attempt int    `json:"attempt"`
+	// Screen is where a VM's display can be viewed, when it has one.
+	Screen *Screen `json:"screen,omitempty"`
+}
+
+// Screen is a VM display: VNC over WebSocket, with a password.
+type Screen struct {
+	Port     int    `json:"port"` // WebSocket port on the machine's address
+	Password string `json:"password"`
 }
 
 type HeartbeatRequest struct {

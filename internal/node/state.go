@@ -58,6 +58,7 @@ type Task struct {
 	Checkpoint []byte            `json:"checkpoint,omitempty"`
 	Snapshot   string            `json:"snapshot,omitempty"` // latest volume snapshot root
 	SnapshotAt time.Time         `json:"snapshotAt,omitempty"`
+	Screen     *protocol.Screen  `json:"-"`                // a running VM's display, as last reported
 	Parent     string            `json:"parent,omitempty"` // the batch job or group this task belongs to
 	Shard      int               `json:"shard,omitempty"`
 	Replica    int               `json:"replica,omitempty"`

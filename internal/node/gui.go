@@ -202,24 +202,25 @@ type agentView struct {
 }
 
 type taskView struct {
-	ID        string    `json:"id"`
-	Package   string    `json:"package"`
-	Title     string    `json:"title"`
-	State     string    `json:"state"`
-	Agent     string    `json:"agent,omitempty"`
-	Attempt   int       `json:"attempt"`
-	Message   string    `json:"message"`
-	Output    string    `json:"output,omitempty"`
-	ExitCode  int       `json:"exitCode"`
-	Ports     []string  `json:"ports,omitempty"`
-	Kind      string    `json:"kind"`
-	Service   bool      `json:"service"`
-	Created   time.Time `json:"created"`
-	Updated   time.Time `json:"updated"`
-	HasSaved  bool      `json:"hasCheckpoint"`
-	Pooled    bool      `json:"pooledData"`
-	SavedAt   time.Time `json:"dataSavedAt"`
-	AgentHost string    `json:"agentHost,omitempty"`
+	ID        string      `json:"id"`
+	Package   string      `json:"package"`
+	Title     string      `json:"title"`
+	State     string      `json:"state"`
+	Agent     string      `json:"agent,omitempty"`
+	Attempt   int         `json:"attempt"`
+	Message   string      `json:"message"`
+	Output    string      `json:"output,omitempty"`
+	ExitCode  int         `json:"exitCode"`
+	Ports     []string    `json:"ports,omitempty"`
+	Kind      string      `json:"kind"`
+	Service   bool        `json:"service"`
+	Created   time.Time   `json:"created"`
+	Updated   time.Time   `json:"updated"`
+	HasSaved  bool        `json:"hasCheckpoint"`
+	Pooled    bool        `json:"pooledData"`
+	Screen    *screenView `json:"screen,omitempty"`
+	SavedAt   time.Time   `json:"dataSavedAt"`
+	AgentHost string      `json:"agentHost,omitempty"`
 }
 
 type totals struct {
@@ -272,6 +273,9 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 		}
 		if a := n.agents[t.AgentID]; a != nil {
 			tv.Agent, tv.AgentHost = a.Name, a.Resources.Hostname
+			if t.Screen != nil && t.State == StateRunning && a.Resources.Addr != "" {
+				tv.Screen = &screenView{Host: a.Resources.Addr, Port: t.Screen.Port, Password: t.Screen.Password}
+			}
 		}
 		if t.State == StateRunning {
 			out.Totals.Running++
@@ -328,7 +332,7 @@ func (n *Node) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	for _, a := range n.agents {
 		if n.online(a, now) {
 			machines = append(machines, marketplace.Machine{
-				OS: a.Resources.OS, Containers: a.Resources.HasContainers(),
+				OS: a.Resources.OS, Containers: a.Resources.HasContainers(), Runtimes: a.Resources.Runtimes,
 				Owner: a.Trust == protocol.TrustOwner && a.Resources.HasRuntime("exec"),
 			})
 		}
@@ -438,4 +442,11 @@ func (n *Node) handleStorage(w http.ResponseWriter, r *http.Request) {
 		out.Restores = out.Restores[:10]
 	}
 	writeJSON(w, out)
+}
+
+// screenView tells the dashboard where to open a VM's screen.
+type screenView struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Password string `json:"password"`
 }
