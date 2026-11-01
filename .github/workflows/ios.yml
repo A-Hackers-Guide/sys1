@@ -1,0 +1,79 @@
+name: iOS
+
+# Builds sys0 for iPhone and iPad, outside the App Store only:
+#   - an unsigned IPA to sideload (AltStore, SideStore, your own certificate)
+#   - a rootless .deb for jailbroken devices (Sileo, Zebra, dpkg)
+# then proves the app on an iOS simulator: it installs, launches, and joins
+# a real node.
+on:
+  push:
+    paths: ["ios/**", "mobile/**", "packaging/ios-deb/**", ".github/workflows/ios.yml", "internal/**", "cmd/sys0/**"]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version: { type: string, required: true }
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ inputs.version || 'v0.0.0' }}
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Tools
+        run: |
+          brew install xcodegen dpkg ldid
+          go install golang.org/x/mobile/cmd/gomobile@latest golang.org/x/mobile/cmd/gobind@latest
+          # gomobile needs this in the module while it binds; it isn't committed.
+          go get golang.org/x/mobile/bind@latest
+      - name: Framework
+        run: gomobile bind -target ios,iossimulator -iosversion 15.0 -o ios/Sys0mobile.xcframework ./mobile/sys0mobile
+      - name: App
+        run: |
+          V=${VERSION#v}
+          xcodegen --spec ios/project.yml
+          for sdk in iphoneos iphonesimulator; do
+            xcodebuild -quiet -project ios/Sys0.xcodeproj -scheme Sys0 -configuration Release -sdk $sdk \
+              -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO MARKETING_VERSION=$V CURRENT_PROJECT_VERSION=1 build
+          done
+          mkdir -p dist test Payload
+          cp -R ios/build/Build/Products/Release-iphoneos/Sys0.app Payload/
+          zip -qry dist/sys1_${V}_ios_sideload.ipa Payload
+          cp -R ios/build/Build/Products/Release-iphonesimulator/Sys0.app test/
+      - name: Jailbreak package
+        run: |
+          V=${VERSION#v}
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          git checkout go.mod go.sum
+          CGO_ENABLED=1 GOOS=ios GOARCH=arm64 \
+            CC="$(xcrun --sdk iphoneos -f clang) -isysroot $SDK -arch arm64 -miphoneos-version-min=15.0" \
+            go build -trimpath -ldflags "-s -w -X github.com/A-Hackers-Guide/sys1/internal/version.Version=$V" -o sys0-ios ./cmd/sys0
+          packaging/ios-deb/build.sh $V sys0-ios dist/sys1_${V}_ios_jailbreak_iphoneos-arm64.deb
+          dpkg-deb -I dist/*.deb
+      - uses: actions/upload-artifact@v4
+        with: { name: ios, path: dist/ }
+      - name: "Simulator: the app joins a node"
+        run: |
+          go build -o sys1-node ./cmd/sys1
+          ./sys1-node serve --no-open --foreground --no-local --data node --listen 127.0.0.1:7443 --gui 127.0.0.1:7700 &
+          for i in $(seq 1 30); do [ -s node/join-code.txt ] && break; sleep 1; done
+          DEV=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          print(next(x["udid"] for r, xs in d.items() if "iOS" in r for x in xs if x["name"].startswith("iPhone")))')
+          xcrun simctl boot "$DEV"
+          xcrun simctl bootstatus "$DEV" -b
+          xcrun simctl install "$DEV" test/Sys0.app
+          xcrun simctl launch "$DEV" io.github.ahackersguide.sys0 --sys1-join "$(cat node/join-code.txt)"
+          for i in $(seq 1 30); do
+            .github/ci-check-machine.sh ios && exit 0
+            sleep 2
+          done
+          exit 1

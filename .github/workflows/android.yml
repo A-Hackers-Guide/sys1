@@ -118,7 +118,7 @@ jobs:
             adb shell /data/local/tmp/sys0 join "$JOIN" --name android-emulator --trust community --storage-gb 1 --no-service --data /data/local/tmp/s
             adb shell "nohup /data/local/tmp/sys0 run --data /data/local/tmp/s >/dev/null 2>&1 &"
             sleep 20
-            .github/ci-check-android.sh
+            .github/ci-check-machine.sh android
       - name: Check the node saw an Android machine
         if: always()
         run: tail -20 node/sys1.log

@@ -1,0 +1,11 @@
+Package: io.github.ahackersguide.sys0
+Name: sys0
+Version: @VERSION@
+Architecture: iphoneos-arm64
+Maintainer: A-Hackers-Guide <289517818+A-Hackers-Guide@users.noreply.github.com>
+Author: A-Hackers-Guide
+Section: System
+Homepage: https://a-hackers-guide.github.io/sys1/
+Description: Lend this device's spare power to a sys1 pool.
+ Runs at the lowest priority in the background, only after you join a
+ pool with: sudo sys0 join <code> --no-service

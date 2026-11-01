@@ -1,0 +1,8 @@
+#!/var/jb/bin/sh
+# Started by launchd. Nothing runs until the device has joined a pool:
+#   sudo sys0 join <code> --no-service
+# sys0 itself only takes work while the device is charging.
+DATA=/var/jb/var/mobile/sys0
+mkdir -p "$DATA"
+while [ ! -f "$DATA/config.json" ]; do sleep 30; done
+exec /var/jb/usr/bin/sys0 run --data "$DATA"

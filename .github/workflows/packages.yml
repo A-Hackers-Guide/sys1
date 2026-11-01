@@ -189,9 +189,14 @@ jobs:
     with:
       version: ${{ inputs.tag }}
 
+  ios:
+    uses: ./.github/workflows/ios.yml
+    with:
+      version: ${{ inputs.tag }}
+
   publish:
     if: inputs.publish
-    needs: [macos-pkg, windows-msi, appimage, snap, freebsd, android]
+    needs: [macos-pkg, windows-msi, appimage, snap, freebsd, android, ios]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
