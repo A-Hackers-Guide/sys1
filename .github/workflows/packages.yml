@@ -39,13 +39,14 @@ jobs:
           pkgbuild --root root --identifier io.github.a-hackers-guide.sys1 --version "$v" --install-location / sys1-component.pkg
           productbuild --distribution packaging/macos/distribution.xml --resources packaging/macos/resources \
             --package-path . "sys1_${v}_macos_universal.pkg"
+          rm sys1-component.pkg   # internal building block, not a download
       - name: Install it and run both apps
         run: |
           sudo installer -pkg "sys1_${V}_macos_universal.pkg" -target /
           /usr/local/bin/sys0 version
           /usr/local/bin/sys1 version
       - uses: actions/upload-artifact@v4
-        with: { name: macos-pkg, path: "*.pkg" }
+        with: { name: macos-pkg, path: "sys1_*_macos_universal.pkg" }
 
   windows-msi:
     runs-on: windows-latest
