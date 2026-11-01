@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sys1 package repository</title>
+<link rel="icon" href="logo.svg">
+<style>
+  :root { color-scheme: light dark; --bg: #f7f8fb; --fg: #1b1d27; --muted: #5d6275; --accent: #0f7a5c; --card: #fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0e1513; --fg: #e8efec; --muted: #9fb0aa; --accent: #3ccf9e; --card: #16211e; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, -apple-system, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px; }
+  img { width: 56px; height: 56px; }
+  code { background: var(--card); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+  .card { background: var(--card); border-radius: 14px; padding: 16px 20px; margin: 20px 0; }
+  a { color: var(--accent); }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <img src="logo.svg" alt="">
+  <h1>sys1 for jailbroken iPhones and iPads</h1>
+  <p>Add this repository to Sileo, Zebra or Cydia, then install <strong>sys0</strong>. It lends your device's spare power to a sys1 pool at the lowest priority, only while it's charging.</p>
+  <div class="card">
+    <p><strong>Repository</strong><br><code>https://a-hackers-guide.github.io/sys1/cydia/</code></p>
+    <p><a href="sileo://source/https://a-hackers-guide.github.io/sys1/cydia/">Add to Sileo</a> · <a href="zbra://sources/add/https://a-hackers-guide.github.io/sys1/cydia/">Add to Zebra</a> · <a href="cydia://url/https://cydia.saurik.com/api/share#?source=https://a-hackers-guide.github.io/sys1/cydia/">Add to Cydia</a></p>
+  </div>
+  <p>Then join a pool once, from a terminal on the device:</p>
+  <p><code>sudo sys0 join &lt;join code&gt; --no-service</code></p>
+  <p class="muted">Rootless jailbreaks (Dopamine, palera1n rootless), iOS 15 and later. Never in the App Store. <a href="https://github.com/A-Hackers-Guide/sys1/blob/main/docs/PLATFORMS.md#ios-and-ipados">More about sys1 on iPhone and iPad</a>.</p>
+</main>
+</body>
+</html>

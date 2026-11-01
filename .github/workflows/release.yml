@@ -8,6 +8,7 @@ permissions:
   contents: write
   packages: write
   id-token: write # passed to the packages workflow, which signs the release
+  actions: write # the packages workflow refreshes the website when done
 
 jobs:
   release:

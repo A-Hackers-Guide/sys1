@@ -9,8 +9,8 @@ sys1 is written in Go with no C dependencies (`CGO_ENABLED=0`, except the iOS bu
 | **Windows** 10/11, Server | amd64, arm64 | ✅ | ✅ | Idle class + background mode | ✅ | Windows Services | builds, CI tested |
 | **macOS** 12+ | arm64, amd64 | ✅ | ✅ | Background QoS (`PRIO_DARWIN_BG`) + nice 19 | ✅ | launchd | builds, CI tested |
 | **Linux** (any distro) | amd64, arm64, arm, 386, riscv64, ppc64le, s390x, mips64le | ✅ | ✅ | nice 19 + idle I/O class, every thread | ✅ | systemd, OpenRC, Upstart, SysV | builds, CI tested |
-| **FreeBSD** | amd64, arm64 | ✅ | ✅ | nice 19 | – | rc.d | builds |
-| **OpenBSD / NetBSD / DragonFly** | amd64 | ✅ | ✅ | nice 19 | – | rc.d | builds |
+| **FreeBSD** | amd64, arm64 | ✅ | ✅ | nice 19 | ✅ | rc.d | builds |
+| **OpenBSD / NetBSD / DragonFly** | amd64 | ✅ | ✅ | nice 19 | ✅ | rc.d | builds |
 | **Solaris / illumos** | amd64 | ✅ | ✅ | nice 19 | – | manual (SMF planned) | builds |
 | **AIX** | ppc64 | ✅ | ✅ | nice 19 | – | manual | builds |
 | **Android** 8+ | arm64, x86_64, armv7 | ✅ app, or Magisk when rooted | – | nice 19 + idle I/O | ✅ | foreground service / Magisk | app CI tested on an emulator |
@@ -60,13 +60,13 @@ sys1 is **never distributed through the App Store**, on any Apple device, in any
 
 **Sideload** `sys1_<version>_ios_sideload.ipa` with [AltStore](https://altstore.io), [SideStore](https://sidestore.io) or your own developer certificate (the IPA is unsigned; those tools sign it for your device). Open **sys0**, paste a join code, switch lending on. iOS doesn't let apps work in the background, so it lends **only while the app is open and the device is charging**: leave it on a charger with the app open overnight. The screen stays on while it lends; turn the brightness down.
 
-**Jailbroken** (rootless jailbreaks such as Dopamine or palera1n): install `sys1_<version>_ios_jailbreak_iphoneos-arm64.deb` with Sileo, Zebra or `dpkg -i`, then join once:
+**Jailbroken** (rootless jailbreaks such as Dopamine or palera1n): add the repository `https://a-hackers-guide.github.io/sys1/cydia/` to Sileo, Zebra or Cydia and install **sys0** (or install `sys1_<version>_ios_jailbreak_iphoneos-arm64.deb` from a release with `dpkg -i`), then join once:
 
 ```sh
 sudo sys0 join <code> --no-service
 ```
 
-A launchd daemon runs it in the background at the lowest priority, only while charging. A package repository for Sileo and Cydia is on the roadmap.
+A launchd daemon runs it in the background at the lowest priority, only while charging. Updates arrive through your package manager.
 
 ## Apple TV
 

@@ -201,6 +201,7 @@ jobs:
     permissions:
       contents: write
       id-token: write # Sigstore keyless signing of checksums.txt
+      actions: write # start the website build
     steps:
       - uses: sigstore/cosign-installer@v3
       - uses: actions/download-artifact@v4
@@ -220,3 +221,5 @@ jobs:
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/packages.yml@refs/tags/$TAG" checksums.txt
           gh release upload "$TAG" -R ${{ github.repository }} --clobber checksums.txt checksums.txt.sigstore.json
+      - name: Refresh the website's package repository
+        run: gh workflow run pages.yml -R ${{ github.repository }} --ref main

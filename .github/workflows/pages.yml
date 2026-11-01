@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths: ["site/**", "packaging/install.*", ".github/workflows/pages.yml"]
   workflow_dispatch:
+  # The package repository below follows the latest release; releases
+  # trigger this workflow when they finish, and this catches anything missed.
+  schedule:
+    - cron: "17 6 * * *"
 
 permissions:
   contents: read
@@ -25,6 +29,27 @@ jobs:
       - uses: actions/checkout@v4
       - name: Add install scripts
         run: cp packaging/install.sh packaging/install.ps1 site/
+      - name: Package repository for jailbroken iPhones and iPads (Sileo, Zebra, Cydia)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get install -y -qq dpkg-dev apt-utils >/dev/null
+          mkdir -p site/cydia/debs
+          cp packaging/ios-deb/repo/* site/cydia/
+          cp site/logo.svg site/cydia/
+          gh release download -R ${{ github.repository }} -p '*_ios_jailbreak_iphoneos-arm64.deb' -D site/cydia/debs || true
+          cd site/cydia
+          if ls debs/*.deb >/dev/null 2>&1; then
+            dpkg-scanpackages -m debs /dev/null > Packages
+            xz -k Packages && bzip2 -k Packages && gzip -k Packages
+            apt-ftparchive \
+              -o APT::FTPArchive::Release::Origin="sys1" -o APT::FTPArchive::Release::Label="sys1" \
+              -o APT::FTPArchive::Release::Suite="stable" -o APT::FTPArchive::Release::Codename="ios" \
+              -o APT::FTPArchive::Release::Architectures="iphoneos-arm64" -o APT::FTPArchive::Release::Components="main" \
+              -o APT::FTPArchive::Release::Description="sys1: lend your device's spare power to a pool" \
+              release . > Release
+            cat Packages
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
