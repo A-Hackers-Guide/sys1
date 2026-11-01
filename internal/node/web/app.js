@@ -158,12 +158,15 @@ function renderMachines(s) {
         (r.runtimes || []).map((x) => h("span", { class: "chip" }, x)),
         (r.gpus || []).map((g) => h("span", { class: "chip accent" }, "GPU: " + g)),
         r.onBattery && h("span", { class: "chip warn" }, "On battery, paused"),
+        r.updates && r.updates !== "automatic" && h("span", { class: "chip warn", title: r.updates }, "Not updating itself"),
         a.disagreed > 0 && h("span", { class: "chip " + (a.disagreed >= 3 ? "bad" : "warn"), title: "Times this machine's output didn't match other machines on verified work" },
           `Disagreed ${a.disagreed}×` + (a.disagreed >= 3 ? ", kept off verified work" : ""))),
       meter("CPU idle", r.cpuIdlePercent || 0, 100, `${cpuFree}% of ${r.cpuCores || 0} cores`),
       meter("Memory free", r.memFree, r.memTotal, `${bytes(r.memFree)} / ${bytes(r.memTotal)}`),
       meter("Disk free", r.diskFree, r.diskTotal, `${bytes(r.diskFree)} / ${bytes(r.diskTotal)}`),
-      h("div", { class: "meta" }, `${a.tasks} app${a.tasks === 1 ? "" : "s"} · sys0 ${a.version || "?"} · joined ${ago(a.joined)}`),
+      (r.problems || []).map((p) => h("p", { class: "problem small" }, "⚠️ " + p)),
+      h("div", { class: "meta" }, `${a.tasks} app${a.tasks === 1 ? "" : "s"} · ${a.local ? "sys1" : "sys0"} ${a.version || "?"} · ` +
+        `updates: ${r.updates || "unknown (sys0 older than 0.8.1)"} · joined ${ago(a.joined)}`),
       !a.local && h("div", { class: "actions" }, h("button", {
         class: "danger ghost", onclick: async () => {
           if (!confirm(`Remove ${a.name} from the pool? Its apps will move to other machines.`)) return;
@@ -494,6 +497,13 @@ $("#show-key").addEventListener("click", async () => {
     input.value = key;
     input.dataset.shown = "1";
     $("#show-key").textContent = "Copy";
+  } catch (err) { toast(err.message); }
+});
+
+$("#update-all").addEventListener("click", async () => {
+  try {
+    await api("/api/update-all", {});
+    toast("Machines check for a new version within a few seconds");
   } catch (err) { toast(err.message); }
 });
 

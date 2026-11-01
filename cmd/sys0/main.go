@@ -68,6 +68,7 @@ func main() {
 	// exist, so everything sys0 does or starts inherits it.
 	priority.Lowest()
 	paths.FixDNS()
+	paths.ExtendPath()
 
 	cmd, args := "setup", os.Args[1:]
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -145,6 +146,7 @@ func main() {
 			fmt.Println("Joined. sys0 is running in the background.")
 		}
 	case "run":
+		updater(*dataDir, log).Relaunch() // a newer copy in the data folder, if updates go there
 		if updater(*dataDir, log).Startup() {
 			os.Exit(1) // went back to the previous version; let the service manager start it
 		}
@@ -201,10 +203,16 @@ func runAgent(ctx context.Context, dataDir string, log *slog.Logger) error {
 		if err != nil {
 			return err
 		}
+		u := updater(dataDir, log)
 		if cfg.NoAutoUpdate {
+			a.Updates = "off (sys0 auto-update on)"
 			return a.Run(ctx)
 		}
-		return updater(dataDir, log).Run(ctx, !cli.Interactive(), a.Run)
+		a.Updates, a.OnUpdateNow = "automatic", u.Kick
+		if why := u.Allowed(); why != "" {
+			a.Updates = why
+		}
+		return u.Run(ctx, !cli.Interactive(), a.Run)
 	}
 }
 

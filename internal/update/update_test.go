@@ -79,7 +79,7 @@ func fakeGitHub(t *testing.T, v string, newBin []byte, tamper bool) *httptest.Se
 
 func newUpdater(t *testing.T, srv *httptest.Server, verifyErr error) *Updater {
 	dir := t.TempDir()
-	exe := filepath.Join(dir, "bin", "sys0")
+	exe := filepath.Join(dir, "install", "sys0")
 	os.MkdirAll(filepath.Dir(exe), 0o755)
 	os.WriteFile(exe, []byte("old binary"), 0o755)
 	return &Updater{
@@ -215,5 +215,44 @@ func TestManagedInstallsAreLeftAlone(t *testing.T) {
 		if m := managedBy(p); m != "" {
 			t.Errorf("%s seen as managed by %s", p, m)
 		}
+	}
+}
+
+// TestUpdatesGoToTheDataFolderWhenTheBinaryIsReadOnly: an installer put
+// the binary in a system folder and the app runs as a person.
+func TestUpdatesGoToTheDataFolderWhenTheBinaryIsReadOnly(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs a folder this user can't write")
+	}
+	u := newUpdater(t, fakeGitHub(t, "0.8.0", []byte("new binary"), false), nil)
+	os.Chmod(filepath.Dir(u.Exe), 0o555)
+	defer os.Chmod(filepath.Dir(u.Exe), 0o755)
+	if why := u.Allowed(); why != "" {
+		t.Fatalf("updates off: %s", why)
+	}
+	if v, err := u.Once(context.Background()); err != nil || v != "0.8.0" {
+		t.Fatalf("Once = %q, %v", v, err)
+	}
+	if b, _ := os.ReadFile(u.Exe); string(b) != "old binary" {
+		t.Fatal("the read-only binary changed")
+	}
+	if b, _ := os.ReadFile(u.stagedPath()); string(b) != "new binary" {
+		t.Fatal("no copy in the data folder")
+	}
+	if u.load().Staged != "0.8.0" {
+		t.Fatal("staged version not recorded")
+	}
+	// The copy keeps crashing: it's set aside and the installed one runs.
+	next := *u
+	next.Current, next.Exe = "0.8.0", u.stagedPath()
+	rolled := false
+	for i := 0; i <= maxStarts && !rolled; i++ {
+		rolled = next.Startup()
+	}
+	if !rolled {
+		t.Fatal("no rollback")
+	}
+	if _, err := os.Stat(u.stagedPath()); err == nil || u.load().Staged != "" {
+		t.Fatal("the failing copy is still used")
 	}
 }

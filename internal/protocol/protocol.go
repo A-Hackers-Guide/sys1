@@ -58,6 +58,11 @@ type Resources struct {
 	Runtimes       []string `json:"runtimes,omitempty"`     // "docker", "podman", "exec"
 	Addr           string   `json:"addr,omitempty"`         // address other machines can reach this one on
 	OpenInternet   bool     `json:"openInternet,omitempty"` // the lender lets apps use the internet freely
+	// Problems says, in plain words, what keeps this machine from running
+	// some kinds of apps (Docker installed but not running, no permission…).
+	Problems []string `json:"problems,omitempty"`
+	// Updates is "automatic", or why this install doesn't update itself.
+	Updates string `json:"updates,omitempty"`
 }
 
 // GPU is one graphics or AI accelerator.
@@ -423,6 +428,9 @@ type HeartbeatResponse struct {
 	// NodeAddrs is every address the node can be reached on right now, so
 	// clients keep up when the node's addresses change.
 	NodeAddrs []string `json:"nodeAddrs,omitempty"`
+	// UpdateNow changes when the pool's owner asks every machine to check
+	// for a new version right away.
+	UpdateNow int `json:"updateNow,omitempty"`
 
 	// Pooled storage work for this machine.
 	Fetch     []string     `json:"fetch,omitempty"`  // download these chunks from the node and keep them

@@ -115,6 +115,10 @@ func (n *Node) guiHandler(addr string) http.Handler {
 	}))
 	mux.HandleFunc("GET /api/storage", n.guiAuth(n.handleStorage))
 	mux.HandleFunc("GET /api/crashes", n.guiAuth(n.handleCrashes))
+	mux.HandleFunc("POST /api/update-all", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		n.UpdateAll()
+		writeJSON(w, struct{}{})
+	}))
 	mux.HandleFunc("POST /api/dashboard-key/rotate", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		k, err := n.RotateGUIKey()
 		if err != nil {
@@ -292,6 +296,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 		Version     string         `json:"version"`
 		JoinCode    string         `json:"joinCode"`
 		OwnerCode   string         `json:"ownerJoinCode"`
+		Updates     string         `json:"updates"`
 		PublicAddr  string         `json:"publicAddr"`
 		Fingerprint string         `json:"fingerprint"`
 		Uptime      float64        `json:"uptime"`
@@ -305,6 +310,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	out.Version, out.JoinCode, out.PublicAddr, out.Fingerprint = version.Version, code.String(), code.Addr, n.fp
 	out.OwnerCode = ownerCode.String()
+	out.Updates = n.cfg.Updates
 	out.Uptime = now.Sub(n.started).Seconds()
 	out.Addrs, out.Internet, out.Cluster = code.Addrs(), internet, clusterStatus
 	load := map[string]int{}

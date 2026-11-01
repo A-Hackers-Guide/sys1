@@ -35,6 +35,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -68,6 +69,28 @@ type Updater struct {
 	Verify func(ctx context.Context, checksums, bundle []byte) error
 	// Exe is the binary to replace (default: the running one).
 	Exe string
+
+	kick chan struct{} // made on first use, under kickMu
+}
+
+var kickMu sync.Mutex
+
+func (u *Updater) kicks() chan struct{} {
+	kickMu.Lock()
+	defer kickMu.Unlock()
+	if u.kick == nil {
+		u.kick = make(chan struct{}, 1)
+	}
+	return u.kick
+}
+
+// Kick makes Loop check for a new version now (the dashboard's "Update
+// all machines now").
+func (u *Updater) Kick() {
+	select {
+	case u.kicks() <- struct{}{}:
+	default:
+	}
 }
 
 func (u *Updater) defaults() {
@@ -179,14 +202,68 @@ func (u *Updater) Allowed() string {
 	if inContainer() {
 		return "running in a container; pull the new image instead"
 	}
-	// The binary's folder must be writable to swap it.
-	f, err := os.CreateTemp(filepath.Dir(exe), ".sys1-update-check-*")
+	if _, _, err := u.target(); err != nil {
+		return "can't write to " + filepath.Dir(exe) + " or its data folder"
+	}
+	return ""
+}
+
+func writable(dir string) bool {
+	f, err := os.CreateTemp(dir, ".sys1-update-check-*")
 	if err != nil {
-		return "can't write to " + filepath.Dir(exe)
+		return false
 	}
 	f.Close()
 	os.Remove(f.Name())
-	return ""
+	return true
+}
+
+// stagedPath is where a new version goes when the installed binary's
+// folder isn't writable by the app (an installer put it in a system folder
+// and it runs as you). The app switches to that copy when it starts.
+func (u *Updater) stagedPath() string {
+	name := u.App
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(u.DataDir, "bin", name)
+}
+
+// target is the binary an update replaces: the running one if its folder
+// is writable, otherwise the copy in the data folder.
+func (u *Updater) target() (path string, staged bool, err error) {
+	exe, err := u.exe()
+	if err != nil {
+		return "", false, err
+	}
+	st := u.stagedPath()
+	if exe != st && writable(filepath.Dir(exe)) {
+		return exe, false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(st), 0o755); err != nil || !writable(filepath.Dir(st)) {
+		return "", false, errors.New("nowhere to install updates")
+	}
+	return st, true, nil
+}
+
+// Relaunch switches to the newer copy an update left in the data folder,
+// if there is one. On success it doesn't return.
+func (u *Updater) Relaunch() {
+	u.defaults()
+	exe, err := u.exe()
+	st := u.stagedPath()
+	if err != nil || exe == st {
+		return
+	}
+	s := u.load()
+	if s.Staged == "" || !Newer(s.Staged, u.Current) {
+		return
+	}
+	if _, err := os.Stat(st); err != nil {
+		return
+	}
+	u.Log.Info("starting the updated copy", "version", s.Staged, "path", st)
+	relaunch(st)
 }
 
 func (u *Updater) exe() (string, error) {
@@ -364,7 +441,10 @@ type state struct {
 	// SkipUntil holds versions that were rolled back; they're tried again
 	// after a while, so a rollback can't keep a fix away for good.
 	SkipUntil map[string]time.Time `json:"skipUntil,omitempty"`
-	Checked   time.Time            `json:"checked"`
+	// Staged is the version of the copy in the data folder, if updates go
+	// there (see stagedPath).
+	Staged  string    `json:"staged,omitempty"`
+	Checked time.Time `json:"checked"`
 }
 
 // startWindow: starts further apart than this aren't a crash loop (a
@@ -395,7 +475,7 @@ func (u *Updater) save(s state) error {
 
 // Install swaps in the new binary, keeping the old one next to it.
 func (u *Updater) Install(newBin []byte, to string) error {
-	exe, err := u.exe()
+	exe, staged, err := u.target()
 	if err != nil {
 		return err
 	}
@@ -421,16 +501,25 @@ func (u *Updater) Install(newBin []byte, to string) error {
 	old := exe + ".old"
 	os.Remove(old)
 	// A running binary can be renamed on every OS, Windows included.
+	hadOld := true
 	if err := os.Rename(exe, old); err != nil {
-		os.Remove(tmp.Name())
-		return err
+		if !os.IsNotExist(err) {
+			os.Remove(tmp.Name())
+			return err
+		}
+		hadOld = false // the first copy in the data folder
 	}
 	if err := os.Rename(tmp.Name(), exe); err != nil {
-		os.Rename(old, exe)
+		if hadOld {
+			os.Rename(old, exe)
+		}
 		return err
 	}
 	s := u.load()
 	s.From, s.To, s.Starts = u.Current, to, 0
+	if staged {
+		s.Staged = to
+	}
 	return u.save(s)
 }
 
@@ -458,13 +547,21 @@ func (u *Updater) Startup() (rolledBack bool) {
 	if err != nil {
 		return false
 	}
-	if _, err := os.Stat(exe + ".old"); err != nil {
-		return false
-	}
 	bad := exe + ".bad"
 	os.Remove(bad)
-	if os.Rename(exe, bad) != nil || os.Rename(exe+".old", exe) != nil {
-		os.Rename(bad, exe)
+	if _, err := os.Stat(exe + ".old"); err == nil {
+		if os.Rename(exe, bad) != nil || os.Rename(exe+".old", exe) != nil {
+			os.Rename(bad, exe)
+			return false
+		}
+	} else if exe == u.stagedPath() {
+		// The first copy in the data folder: set it aside, and the
+		// installed binary runs again.
+		if os.Rename(exe, bad) != nil {
+			return false
+		}
+		s.Staged = ""
+	} else {
 		return false
 	}
 	u.Log.Error("the new version keeps failing; went back to the previous one", "bad", s.To, "back to", s.From)
@@ -540,6 +637,7 @@ func (u *Updater) Loop(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(wait):
+		case <-u.kicks():
 		}
 		v, err := u.Once(ctx)
 		switch {

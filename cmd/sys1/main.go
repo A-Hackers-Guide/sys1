@@ -77,6 +77,7 @@ func (m *multi) String() string     { return strings.Join(*m, ",") }
 func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 func main() {
+	paths.ExtendPath() // the node's own client finds Docker and QEMU like sys0 does
 	cmd, args := "serve", os.Args[1:]
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		cmd, args = args[0], args[1:]
@@ -136,6 +137,12 @@ func main() {
 		svcArgs = append(svcArgs, "--no-auto-update")
 	}
 	u := &update.Updater{App: "sys1", Current: version.Version, DataDir: *dataDir, Log: log}
+	cfg.Updates, cfg.OnUpdateNow = "automatic", u.Kick
+	if *noAutoUpdate {
+		cfg.Updates = "off (started with --no-auto-update)"
+	} else if why := u.Allowed(); why != "" {
+		cfg.Updates = why
+	}
 	run := func(ctx context.Context, quiet bool, restart bool) error {
 		work := func(ctx context.Context) error { return serve(ctx, cfg, log, quiet, !*noLocal) }
 		if *noAutoUpdate {
@@ -156,6 +163,7 @@ func main() {
 	var err error
 	switch cmd {
 	case "serve":
+		u.Relaunch() // a newer copy in the data folder, if updates go there
 		if u.Startup() {
 			os.Exit(1) // went back to the previous version; let the service manager start it
 		}
@@ -273,6 +281,7 @@ func runLocalAgent(ctx context.Context, n *node.Node, dir string, log *slog.Logg
 		return
 	}
 	a.FixedAddrs = !n.Clustered()
+	a.Updates = n.Updates() // it's the node's own binary
 	a.Run(ctx)
 }
 

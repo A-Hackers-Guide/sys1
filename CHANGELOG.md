@@ -2,6 +2,20 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.8.1] - 2026-11-01
+
+Found on real machines: Docker that was installed but not seen, and installs that never updated.
+
+### Fixed
+
+- **Docker, Podman and QEMU weren't found by the background service** when they were installed in `/usr/local/bin`, Homebrew, Docker Desktop's own folder, `~/.docker/bin`, OrbStack or Rancher Desktop, or after the service had started (Windows services keep the PATH from boot). sys0 and sys1 now look in those places, and use Docker Desktop's, OrbStack's or Colima's socket when the default one is missing.
+- **Installs that couldn't replace their own binary never updated**, for example the macOS installer's `/usr/local/bin` with sys0 running as you. Updates now go to the data folder, and the app switches to that copy when it starts (with the same rollback).
+
+### Added
+
+- Each machine card says **why** an app kind can't run there ("Docker is installed but not running. Open Docker Desktop and turn on 'Start when you sign in'", "sys0 isn't allowed to use it", …) and whether the machine **updates itself**, or why not.
+- **Update all machines now** on the Machines tab: every machine and the node check for a new version within seconds instead of waiting for their daily check.
+
 ## [0.8.0] - 2026-11-01
 
 Self-care: automatic updates, crash reports, a security review.

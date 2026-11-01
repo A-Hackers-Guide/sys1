@@ -52,6 +52,10 @@ type Config struct {
 	Cluster  bool
 	RaftAddr string
 	FastRaft bool // short Raft timeouts, for tests
+	// Updates is "automatic", or why the node doesn't update itself.
+	Updates string
+	// OnUpdateNow makes the node itself check for a new version now.
+	OnUpdateNow func()
 	// CrashIntake receives crash reports (default crash.DefaultIntake; the
 	// SYS1_CRASH_INTAKE environment variable overrides both, "" turns it off).
 	CrashIntake string
@@ -91,6 +95,7 @@ type Node struct {
 	scrubber      *crash.Scrubber
 	crashQuota    map[string]int // reports per machine today
 	crashQuotaDay string
+	updateNow     int // bumped by "Update all machines now"
 	github        *githubWatch
 }
 
@@ -148,6 +153,20 @@ func (n *Node) JoinCode() protocol.JoinCode {
 	addrs := n.addrsLocked()
 	return protocol.JoinCode{Addr: addrs[0], More: addrs[1:], Fingerprint: n.fp, Token: n.joinToken}
 }
+
+// UpdateAll asks every machine, and this node, to check for a new version
+// now instead of waiting for their daily check.
+func (n *Node) UpdateAll() {
+	n.mu.Lock()
+	n.updateNow = int(time.Now().Unix())
+	n.mu.Unlock()
+	if n.cfg.OnUpdateNow != nil {
+		go n.cfg.OnUpdateNow()
+	}
+}
+
+// Updates says whether this node updates itself, and if not, why.
+func (n *Node) Updates() string { return n.cfg.Updates }
 
 // OwnerJoinCode is the join code for the owner's own machines, which may
 // run owner-only work (VMs, native programs, unauthenticated services).
@@ -442,6 +461,7 @@ func (n *Node) handleHeartbeat(w http.ResponseWriter, r *http.Request, a *Agent)
 	}
 	n.storageHeartbeatLocked(a, req.Storage, &resp, now)
 	resp.NodeAddrs = n.addrsLocked()
+	resp.UpdateNow = n.updateNow
 	writeJSON(w, resp)
 }
 

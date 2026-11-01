@@ -35,12 +35,18 @@ type Agent struct {
 	// FixedAddrs keeps the addresses from the config instead of following
 	// the node's list (the node's own built-in client uses loopback).
 	FixedAddrs bool
+	// Updates is shown on the node: "automatic", or why this install
+	// doesn't update itself.
+	Updates string
+	// OnUpdateNow is called when the node asks for an update check now.
+	OnUpdateNow func()
 
 	cfg     Config
 	dataDir string
 	log     *slog.Logger
 
 	crashesSent time.Time
+	updateNow   int
 	c           *client
 	outbox      *journal.Journal
 	st          *agentStorage
@@ -166,6 +172,7 @@ func (a *Agent) Run(ctx context.Context) error {
 func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, error) {
 	res := a.Sample(a.cfg.Trust == protocol.TrustOwner)
 	res.OpenInternet = a.cfg.OpenInternet
+	res.Updates = a.Updates
 	a.mu.Lock()
 	a.last = res
 	req := protocol.HeartbeatRequest{Resources: res, Version: version.Version, Storage: a.st.report()}
@@ -185,6 +192,12 @@ func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, erro
 func (a *Agent) apply(ctx context.Context, resp protocol.HeartbeatResponse) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if resp.UpdateNow != a.updateNow {
+		if a.updateNow != 0 && a.OnUpdateNow != nil {
+			go a.OnUpdateNow()
+		}
+		a.updateNow = resp.UpdateNow
+	}
 	for _, id := range resp.Cancel {
 		if r := a.running[id]; r != nil {
 			r.cancelByNode = true
