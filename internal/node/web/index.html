@@ -29,6 +29,9 @@
 </header>
 
 <main>
+  <div id="standby" class="panel standby hidden">
+    <b>This node is a standby.</b> <span id="standby-text"></span>
+  </div>
   <section id="locked" class="panel hidden">
     <h2>🔒 This dashboard is locked</h2>
     <p>Open it from the link the node printed when it started, or run this on the node's machine:</p>
@@ -135,6 +138,10 @@
       <p class="muted">Command-line install: <code id="cli"></code></p>
       <button id="rotate" class="danger ghost">Make a new join code</button>
       <span class="muted small">Old codes stop working. Machines that already joined stay connected.</span>
+    </div>
+    <div class="panel spaced-panel">
+      <h2>Nodes</h2>
+      <div id="nodes"></div>
     </div>
   </section>
 

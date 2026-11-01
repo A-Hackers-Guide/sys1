@@ -85,6 +85,14 @@ func (n *Node) guiHandler(addr string) http.Handler {
 		}
 		writeJSON(w, map[string]int{"restores": count})
 	}))
+	mux.HandleFunc("GET /api/cluster/code", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		code, err := n.ClusterCode()
+		if err != nil {
+			replyErr(w, err)
+			return
+		}
+		writeJSON(w, map[string]string{"code": code})
+	}))
 	mux.HandleFunc("GET /api/storage", n.guiAuth(n.handleStorage))
 	mux.HandleFunc("GET /api/storage/recovery-key", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"key": n.RecoveryKey()})
@@ -161,6 +169,11 @@ func (n *Node) guiAuth(h http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "missing X-Sys1 header", http.StatusForbidden)
 			return
 		}
+		if r.Method != http.MethodGet && !n.leading() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			writeJSON(w, map[string]string{"error": "This node is a standby. Make changes on the dashboard of the node that is leading."})
+			return
+		}
 		h(w, r)
 	}
 }
@@ -225,6 +238,7 @@ type totals struct {
 func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 	code := n.JoinCode()
 	internet := n.InternetStatus()
+	clusterStatus := n.ClusterStatus()
 	now := time.Now()
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -240,10 +254,11 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 		Jobs        []jobView      `json:"jobs"`
 		Addrs       []string       `json:"addrs"`
 		Internet    InternetStatus `json:"internet"`
+		Cluster     ClusterStatus  `json:"cluster"`
 	}
 	out.Version, out.JoinCode, out.PublicAddr, out.Fingerprint = version.Version, code.String(), code.Addr, n.fp
 	out.Uptime = now.Sub(n.started).Seconds()
-	out.Addrs, out.Internet = code.Addrs(), internet
+	out.Addrs, out.Internet, out.Cluster = code.Addrs(), internet, clusterStatus
 	load := map[string]int{}
 	for _, t := range n.tasks {
 		if !terminal(t.State) && t.AgentID != "" {

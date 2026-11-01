@@ -68,6 +68,12 @@ func (c *client) do(mk func(base string) (*http.Request, error)) (*http.Response
 			return nil, err
 		}
 		resp, err := c.http.Do(req)
+		if err == nil && resp.StatusCode == http.StatusMisdirectedRequest {
+			// A standby node in a cluster: the leader is at another address.
+			resp.Body.Close()
+			lastErr = &StatusError{Code: resp.StatusCode, Msg: "standby node"}
+			continue
+		}
 		if err == nil {
 			if k > 0 {
 				c.mu.Lock()
@@ -82,6 +88,10 @@ func (c *client) do(mk func(base string) (*http.Request, error)) (*http.Response
 			return nil, err
 		}
 		lastErr = err
+	}
+	if se, ok := lastErr.(*StatusError); ok {
+		// Every node answered "standby": an election is under way.
+		return nil, se
 	}
 	return nil, lastErr
 }

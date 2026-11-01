@@ -33,6 +33,29 @@ type InternetStatus struct {
 // addrsLocked lists every address machines can reach the node on, best
 // first. Clients try them in order and stay with the first that answers.
 func (n *Node) addrsLocked() []string {
+	out := n.ownAddrsLocked()
+	if n.clustered() {
+		seen := map[string]bool{}
+		for _, a := range out {
+			seen[a] = true
+		}
+		for id, m := range n.cl.members {
+			if id == n.cl.id {
+				continue
+			}
+			for _, a := range m.APIAddrs {
+				if !seen[a] {
+					seen[a] = true
+					out = append(out, a)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// ownAddrsLocked lists this node's own addresses, best first.
+func (n *Node) ownAddrsLocked() []string {
 	host, _, _ := net.SplitHostPort(n.cfg.ListenAddr)
 	if ip := net.ParseIP(host); host != "" && ip != nil && !ip.IsUnspecified() {
 		return []string{n.cfg.ListenAddr} // bound to one address only

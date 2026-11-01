@@ -136,6 +136,10 @@ func (n *Node) replay(b []byte) error {
 // Every so often the journal is compacted into a snapshot of current state.
 func (n *Node) persistLocked(e event) {
 	b, _ := json.Marshal(e)
+	if n.clustered() {
+		n.proposeLocked(entry{Event: b})
+		return
+	}
 	if err := n.j.Append(b); err != nil {
 		n.log.Error("journal write failed", "err", err)
 		return
@@ -145,7 +149,8 @@ func (n *Node) persistLocked(e event) {
 	}
 }
 
-func (n *Node) compactLocked() {
+// recordsLocked is the whole state as journal records.
+func (n *Node) recordsLocked() [][]byte {
 	var recs [][]byte
 	add := func(e event) {
 		b, _ := json.Marshal(e)
@@ -171,7 +176,11 @@ func (n *Node) compactLocked() {
 	for _, j := range n.jobs {
 		add(event{Job: j})
 	}
-	if err := n.j.Compact(recs); err != nil {
+	return recs
+}
+
+func (n *Node) compactLocked() {
+	if err := n.j.Compact(n.recordsLocked()); err != nil {
 		n.log.Error("journal compaction failed", "err", err)
 	}
 }

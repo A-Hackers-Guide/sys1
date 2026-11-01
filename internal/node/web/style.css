@@ -204,3 +204,6 @@ h2.spaced { margin-top: 24px; }
 .switch input { width: 18px; height: 18px; accent-color: var(--accent); }
 .ok-text { color: var(--ok); }
 .bad-text { color: var(--bad); }
+
+.standby { margin-bottom: 20px; border-color: var(--warn); }
+.spaced-panel { margin-top: 20px; }

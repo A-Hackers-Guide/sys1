@@ -19,9 +19,12 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/agent"
 	"github.com/A-Hackers-Guide/sys1/internal/cli"
@@ -51,6 +54,10 @@ Usage:
   sys1 join-code            print the join code for new machines
   sys1 install|uninstall    run the node as a background service (starts at boot)
   sys1 start|stop|restart|status
+  sys1 --cluster            run as a member of a cluster of nodes (see docs/CLUSTER.md)
+        --raft-addr <addr>    address for traffic between nodes (default :7444)
+  sys1 cluster code         print the code another node uses to join this cluster
+  sys1 cluster join <code>  make this machine a node of an existing cluster, then run: sys1 --cluster
   sys1 pkg keygen <file>    create a package signing key
   sys1 pkg sign <manifest.json> --key <file>
   sys1 pkg verify <manifest.json>
@@ -70,7 +77,7 @@ func main() {
 		cmd, args = args[0], args[1:]
 	}
 	sub := ""
-	if cmd == "pkg" && len(args) > 0 {
+	if (cmd == "pkg" || cmd == "cluster") && len(args) > 0 {
 		sub, args = args[0], args[1:]
 	}
 	fs := flag.NewFlagSet("sys1 "+cmd, flag.ExitOnError)
@@ -83,6 +90,8 @@ func main() {
 	noLocal := fs.Bool("no-local", false, "do not lend this machine's capacity")
 	keyFile := fs.String("key", "", "signing key file")
 	copies := fs.Int("copies", 3, "copies kept of app data")
+	clusterMode := fs.Bool("cluster", false, "run as a member of a cluster of nodes")
+	raftAddr := fs.String("raft-addr", ":7444", "address for traffic between cluster nodes")
 	stagingGB := fs.Int("staging-gb", 4, "disk the node may use to pass chunks between machines")
 	verbose := fs.Bool("v", false, "verbose logging")
 	var trustKeys multi
@@ -100,7 +109,7 @@ func main() {
 
 	log := cli.Logger(*dataDir, "sys1", *verbose)
 	cfg := node.Config{DataDir: *dataDir, ListenAddr: *listen, GUIAddr: *gui, PublicAddr: *public, TrustedKeys: append(trustKeys, readTrustedKeys(*dataDir)...),
-		Copies: *copies, StagingBytes: int64(*stagingGB) << 30}
+		Copies: *copies, StagingBytes: int64(*stagingGB) << 30, Cluster: *clusterMode, RaftAddr: *raftAddr}
 	svcArgs := []string{"serve", "--no-open", "--data", *dataDir, "--listen", *listen, "--gui", *gui,
 		"--copies", fmt.Sprint(*copies), "--staging-gb", fmt.Sprint(*stagingGB)}
 	if *public != "" {
@@ -108,6 +117,9 @@ func main() {
 	}
 	if *noLocal {
 		svcArgs = append(svcArgs, "--no-local")
+	}
+	if *clusterMode {
+		svcArgs = append(svcArgs, "--cluster", "--raft-addr", *raftAddr)
 	}
 	svc := &cli.Service{
 		Name:        "sys1",
@@ -150,6 +162,8 @@ func main() {
 		fmt.Println("sys1", version.Version, "· service:", svc.Status(), "· data:", *dataDir)
 	case "pkg":
 		err = pkg(sub, positional, *keyFile)
+	case "cluster":
+		err = clusterCmd(sub, positional, *dataDir, *raftAddr, *listen)
 	case "version", "--version":
 		fmt.Println("sys1", version.String())
 	case "help", "-h", "--help":
@@ -185,31 +199,47 @@ func serve(ctx context.Context, cfg node.Config, log *slog.Logger, quiet, local 
 }
 
 // runLocalAgent lends the node's own machine to the pool, so a single
-// computer is already a working pool.
+// computer is already a working pool. In a cluster it registers like any
+// other machine of yours and follows whichever node is leading.
 func runLocalAgent(ctx context.Context, n *node.Node, dir string, log *slog.Logger) {
 	log = log.With("component", "local-client")
-	cfg, err := agent.LoadConfig(dir)
 	code := n.LocalJoinCode()
+	if n.Clustered() {
+		jc := n.JoinCode()
+		code = protocol.JoinCode{Addr: code.Addr, More: jc.Addrs(), Fingerprint: jc.Fingerprint, Token: jc.Token}
+	}
+	cfg, err := agent.LoadConfig(dir)
 	if err == nil && cfg.Fingerprint != code.Fingerprint {
 		err = agent.ErrNotConfigured // node identity changed; rejoin
 	}
-	if err != nil {
+	for err != nil {
 		host, _ := os.Hostname()
 		sampler := &resources.Sampler{DataDir: dir}
-		cfg, err = agent.Register(ctx, code, host+" (node)", protocol.TrustOwner, sampler.Sample(true), version.Version)
-		if err != nil {
-			log.Error("could not start the node's own client", "err", err)
-			return
+		if n.Clustered() {
+			jc := n.JoinCode() // the join token arrives with the cluster's state
+			code.Token, code.More = jc.Token, jc.Addrs()
 		}
-		agent.SaveConfig(dir, cfg)
+		cfg, err = agent.Register(ctx, code, host+" (node)", protocol.TrustOwner, sampler.Sample(true), version.Version)
+		if err == nil {
+			agent.SaveConfig(dir, cfg)
+			break
+		}
+		log.Warn("could not start the node's own client yet; retrying", "err", err)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
 	}
-	cfg.NodeAddr, cfg.NodeAddrs = code.Addr, nil // the port may have changed
+	if !n.Clustered() {
+		cfg.NodeAddr, cfg.NodeAddrs = code.Addr, nil // the port may have changed
+	}
 	a, err := agent.New(dir, cfg, log)
 	if err != nil {
 		log.Error("could not start the node's own client", "err", err)
 		return
 	}
-	a.FixedAddrs = true
+	a.FixedAddrs = !n.Clustered()
 	a.Run(ctx)
 }
 
@@ -308,4 +338,56 @@ func readManifest(path string) (marketplace.Manifest, error) {
 		return m, err
 	}
 	return m, json.Unmarshal(b, &m)
+}
+
+func clusterCmd(sub string, args []string, dataDir, raftAddr, listen string) error {
+	switch sub {
+	case "code":
+		b, err := os.ReadFile(filepath.Join(dataDir, node.ClusterCodeFile))
+		if err != nil {
+			return errors.New("no cluster code yet: start the node with --cluster first; the code appears once it leads")
+		}
+		fmt.Println(strings.TrimSpace(string(b)))
+		return nil
+	case "join":
+		if len(args) != 1 {
+			return errors.New("usage: sys1 cluster join <cluster code>")
+		}
+		_, port, _ := net.SplitHostPort(listen)
+		var api []string
+		for _, ip := range localIPs() {
+			api = append(api, net.JoinHostPort(ip, port))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if err := node.JoinCluster(ctx, dataDir, args[0], raftAddr, api); err != nil {
+			return err
+		}
+		fmt.Println("Joined. Start this node with: sys1 --cluster   (or: sys1 install --cluster)")
+		return nil
+	}
+	return errors.New("usage: sys1 cluster code | sys1 cluster join <code>")
+}
+
+// localIPs lists this machine's IPv4 addresses that other machines might
+// reach, LAN first.
+func localIPs() []string {
+	var out []string
+	if c, err := net.Dial("udp", "1.1.1.1:80"); err == nil {
+		out = append(out, c.LocalAddr().(*net.UDPAddr).IP.String())
+		c.Close()
+	}
+	ifaces, _ := net.Interfaces()
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			if ipn, ok := a.(*net.IPNet); ok && ipn.IP.To4() != nil && !ipn.IP.IsLinkLocalUnicast() && !slices.Contains(out, ipn.IP.String()) {
+				out = append(out, ipn.IP.String())
+			}
+		}
+	}
+	return out
 }

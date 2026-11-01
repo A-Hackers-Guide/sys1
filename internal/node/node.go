@@ -45,6 +45,11 @@ type Config struct {
 	// disk the node may use to pass chunks between machines (default 4 GiB).
 	Copies       int
 	StagingBytes int64
+	// Cluster runs this node as a member of a Raft cluster (see
+	// docs/CLUSTER.md), with Raft traffic on RaftAddr (default :7444).
+	Cluster  bool
+	RaftAddr string
+	FastRaft bool // short Raft timeouts, for tests
 }
 
 type Node struct {
@@ -69,6 +74,10 @@ type Node struct {
 	settings   Settings
 	mapping    *nat.Mapping
 	internet   InternetStatus
+
+	cl          *cluster
+	raftAddr    string
+	pendingSeed bool
 }
 
 func New(cfg Config, log *slog.Logger) (*Node, error) {
@@ -171,6 +180,26 @@ func (n *Node) Serve(ctx context.Context, ready func(apiAddr, guiAddr string)) e
 	n.mu.Lock()
 	n.cfg.ListenAddr = apiLn.Addr().String()
 	n.mu.Unlock()
+	if n.cfg.Cluster {
+		if n.cfg.RaftAddr == "" {
+			n.cfg.RaftAddr = ":7444"
+		}
+		joined := false
+		if b, err := os.ReadFile(joinStatePath(n.cfg.DataDir)); err == nil {
+			var st joinState
+			if json.Unmarshal(b, &st) == nil && st.RaftAddr != "" {
+				joined = true
+				_, port, _ := net.SplitHostPort(st.RaftAddr)
+				host, _, _ := net.SplitHostPort(n.cfg.RaftAddr)
+				n.cfg.RaftAddr = net.JoinHostPort(host, port)
+			}
+		}
+		if err := n.startCluster(ctx, !joined); err != nil {
+			apiLn.Close()
+			guiLn.Close()
+			return err
+		}
+	}
 	n.saveJoinCode()
 	n.applyInternet()
 
@@ -198,7 +227,9 @@ func (n *Node) Serve(ctx context.Context, ready func(apiAddr, guiAddr string)) e
 		m.Close() // close the router port again
 	}
 	n.mu.Lock()
-	n.compactLocked()
+	if !n.clustered() {
+		n.compactLocked()
+	}
 	n.j.Close()
 	n.mu.Unlock()
 	if errors.Is(err, http.ErrServerClosed) {
@@ -215,6 +246,9 @@ func (n *Node) loop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case now := <-t.C:
+			if !n.leading() {
+				continue
+			}
 			n.mu.Lock()
 			n.scheduleLocked(now)
 			n.maintainPoolLocked(now)
@@ -235,8 +269,17 @@ func (n *Node) apiHandler() http.Handler {
 	mux.HandleFunc("POST /api/v1/inventory", n.withAgent(n.handleInventory))
 	mux.HandleFunc("POST /api/v1/snapshot", n.withAgent(n.handleSnapshot))
 	mux.HandleFunc("POST /api/v1/restore-result", n.withAgent(n.handleRestoreResult))
+	mux.HandleFunc("POST /api/v1/cluster/join", n.handleClusterJoin)
+	mux.HandleFunc("POST /api/v1/cluster/add", n.handleClusterAdd)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
-	return mux
+	// A standby sends clients on to the next address: the leader.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !n.leading() && r.URL.Path != "/healthz" && !strings.HasPrefix(r.URL.Path, "/api/v1/cluster/") {
+			http.Error(w, ErrStandby.Error(), http.StatusMisdirectedRequest)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
 }
 
 func readJSON(w http.ResponseWriter, r *http.Request, max int64, v any) bool {
@@ -500,10 +543,17 @@ func (n *Node) RotateJoinCode() {
 	n.saveJoinCode()
 }
 
+// ClusterCodeFile holds the code other nodes use to join this cluster,
+// written while this node leads.
+const ClusterCodeFile = "cluster-code.txt"
+
 // JoinCodeFile holds the current join code so `sys1 join-code` can print
 // it without disturbing a running node.
 const JoinCodeFile = "join-code.txt"
 
 func (n *Node) saveJoinCode() {
 	os.WriteFile(filepath.Join(n.cfg.DataDir, JoinCodeFile), []byte(n.JoinCode().String()+"\n"), 0o600)
+	if code, err := n.ClusterCode(); err == nil {
+		os.WriteFile(filepath.Join(n.cfg.DataDir, ClusterCodeFile), []byte(code+"\n"), 0o600)
+	}
 }

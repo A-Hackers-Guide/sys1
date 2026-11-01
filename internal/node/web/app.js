@@ -243,7 +243,41 @@ function renderApps(s) {
     h("button", { class: "primary", onclick: () => show("market") }, "Open marketplace")));
 }
 
+async function renderNodes(s) {
+  const c = s.cluster || {};
+  const sb = $("#standby");
+  sb.classList.toggle("hidden", !c.enabled || c.leading);
+  if (c.enabled && !c.leading) {
+    const leader = (c.members || []).find((m) => m.leader);
+    $("#standby-text").textContent = leader
+      ? `${leader.name} is leading the pool. Its dashboard shows live work and accepts changes; this page is read-only.`
+      : "The nodes are electing a leader. This takes a few seconds.";
+  }
+  const box = $("#nodes");
+  if (!c.enabled) {
+    fill(box, h("p", { class: "muted" }, "This is a single node. To keep the pool running if this machine fails, run 2 more nodes as a cluster (3 in total, so any one can fail): restart this node with "),
+      h("pre", {}, h("code", {}, "sys1 --cluster")),
+      h("p", { class: "muted small" }, "then add the others from here. See docs/CLUSTER.md."));
+    return;
+  }
+  const rows = (c.members || []).map((m) => h("div", { class: "item" },
+    h("div", { class: "emoji" }, m.leader ? "👑" : "🖥️"),
+    h("div", { class: "grow" },
+      h("div", { class: "title" }, m.name + (m.id === c.self ? " (this node)" : "")),
+      h("div", { class: "msg mono" }, (m.apiAddrs || []).join(", "))),
+    h("span", { class: "chip " + (m.leader ? "ok" : m.voter ? "accent" : "warn") }, m.leader ? "Leading" : m.voter ? "Standby" : "Joining")));
+  if (box.dataset.code === undefined && c.leading) {
+    box.dataset.code = "";
+    try { box.dataset.code = (await api("/api/cluster/code")).code; } catch {}
+  }
+  const code = box.dataset.code;
+  fill(box, rows,
+    c.leading && code && h("p", { class: "muted small" }, "To add another node, run this on it, then start it with sys1 --cluster:"),
+    c.leading && code && h("pre", {}, h("code", {}, "sys1 cluster join " + code)));
+}
+
 function renderAdd(s) {
+  renderNodes(s);
   const input = $("#joincode");
   if (input.value !== s.joinCode) input.value = s.joinCode;
   fill($("#addrs"), (s.addrs || []).map((a) => h("li", {}, a)));
