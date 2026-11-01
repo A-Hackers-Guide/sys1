@@ -203,12 +203,13 @@ func runLocalAgent(ctx context.Context, n *node.Node, dir string, log *slog.Logg
 		}
 		agent.SaveConfig(dir, cfg)
 	}
-	cfg.NodeAddr = code.Addr // the port may have changed
+	cfg.NodeAddr, cfg.NodeAddrs = code.Addr, nil // the port may have changed
 	a, err := agent.New(dir, cfg, log)
 	if err != nil {
 		log.Error("could not start the node's own client", "err", err)
 		return
 	}
+	a.FixedAddrs = true
 	a.Run(ctx)
 }
 

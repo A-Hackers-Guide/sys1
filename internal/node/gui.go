@@ -121,6 +121,16 @@ func (n *Node) guiHandler(addr string) http.Handler {
 		_, err := n.StartRestore(req.Root, req.AgentID, req.Dest)
 		replyErr(w, err)
 	}))
+	mux.HandleFunc("POST /api/internet", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			On bool `json:"on"`
+		}
+		if !readJSON(w, r, 1<<10, &req) {
+			return
+		}
+		n.SetInternet(req.On)
+		replyErr(w, nil)
+	}))
 	mux.HandleFunc("POST /api/joincode/rotate", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		n.RotateJoinCode()
 		replyErr(w, nil)
@@ -214,22 +224,26 @@ type totals struct {
 
 func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 	code := n.JoinCode()
+	internet := n.InternetStatus()
 	now := time.Now()
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	var out struct {
-		Version     string      `json:"version"`
-		JoinCode    string      `json:"joinCode"`
-		PublicAddr  string      `json:"publicAddr"`
-		Fingerprint string      `json:"fingerprint"`
-		Uptime      float64     `json:"uptime"`
-		Totals      totals      `json:"totals"`
-		Agents      []agentView `json:"agents"`
-		Tasks       []taskView  `json:"tasks"`
-		Jobs        []jobView   `json:"jobs"`
+		Version     string         `json:"version"`
+		JoinCode    string         `json:"joinCode"`
+		PublicAddr  string         `json:"publicAddr"`
+		Fingerprint string         `json:"fingerprint"`
+		Uptime      float64        `json:"uptime"`
+		Totals      totals         `json:"totals"`
+		Agents      []agentView    `json:"agents"`
+		Tasks       []taskView     `json:"tasks"`
+		Jobs        []jobView      `json:"jobs"`
+		Addrs       []string       `json:"addrs"`
+		Internet    InternetStatus `json:"internet"`
 	}
 	out.Version, out.JoinCode, out.PublicAddr, out.Fingerprint = version.Version, code.String(), code.Addr, n.fp
 	out.Uptime = now.Sub(n.started).Seconds()
+	out.Addrs, out.Internet = code.Addrs(), internet
 	load := map[string]int{}
 	for _, t := range n.tasks {
 		if !terminal(t.State) && t.AgentID != "" {

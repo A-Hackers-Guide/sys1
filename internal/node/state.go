@@ -92,6 +92,7 @@ type event struct {
 	DelBackup   string    `json:"delBackup,omitempty"`
 	Restore     *Restore  `json:"restore,omitempty"`
 	Job         *Job      `json:"job,omitempty"`
+	Settings    *Settings `json:"settings,omitempty"`
 	DelJob      string    `json:"delJob,omitempty"`
 }
 
@@ -121,6 +122,8 @@ func (n *Node) replay(b []byte) error {
 		delete(n.pool.backups, e.DelBackup)
 	case e.Restore != nil:
 		n.pool.restores[e.Restore.ID] = e.Restore
+	case e.Settings != nil:
+		n.settings = *e.Settings
 	case e.Job != nil:
 		n.jobs[e.Job.ID] = e.Job
 	case e.DelJob != "":
@@ -149,6 +152,7 @@ func (n *Node) compactLocked() {
 		recs = append(recs, b)
 	}
 	add(event{JoinToken: n.joinToken})
+	add(event{Settings: &n.settings})
 	for _, a := range n.agents {
 		add(event{Agent: a})
 	}

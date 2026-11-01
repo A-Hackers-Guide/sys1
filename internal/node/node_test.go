@@ -672,3 +672,32 @@ func TestVerifiedJob(t *testing.T) {
 	}
 	t.Logf("gamma ran a piece: %v, disagreements recorded: %d", gammaRan, disagreed)
 }
+
+// TestClientFailsOverBetweenAddresses gives a client a dead address first;
+// it must reach the node on the next one and keep working.
+func TestClientFailsOverBetweenAddresses(t *testing.T) {
+	n, ctx := startNode(t)
+	code := n.LocalJoinCode()
+	good := code.Addr
+	code.Addr, code.More = "127.0.0.1:1", []string{good} // port 1: nothing listens
+	cfg, err := agent.Register(ctx, code, "roamer", protocol.TrustOwner, protocol.Resources{OS: "test", CPUCores: 1}, "test")
+	if err != nil {
+		t.Fatalf("register with a dead first address: %v", err)
+	}
+	if cfg.NodeAddr != good || cfg.NodeAddrs[0] != good {
+		t.Fatalf("config should start with the address that worked: %+v", cfg.NodeAddrs)
+	}
+	cfg.NodeAddrs = []string{"127.0.0.1:1", good} // dead one first again
+	a, err := agent.New(filepath.Join(n.cfg.DataDir, "clients", "roamer"), cfg, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { a.Run(actx); close(done) }()
+	t.Cleanup(func() { cancel(); <-done })
+	waitFor(t, n, 20*time.Second, "the client to report in", func() bool {
+		ag := n.agents[cfg.AgentID]
+		return ag != nil && n.online(ag, time.Now()) && ag.Version == "dev"
+	})
+}

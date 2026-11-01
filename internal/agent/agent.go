@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 
@@ -29,6 +30,9 @@ type Agent struct {
 	// Sample measures this machine. It defaults to the real measurement;
 	// tests replace it so they do not depend on the host's load or battery.
 	Sample func(allowExec bool) protocol.Resources
+	// FixedAddrs keeps the addresses from the config instead of following
+	// the node's list (the node's own built-in client uses loopback).
+	FixedAddrs bool
 
 	cfg     Config
 	dataDir string
@@ -56,7 +60,7 @@ func New(dataDir string, cfg Config, log *slog.Logger) (*Agent, error) {
 		cfg:      cfg,
 		dataDir:  dataDir,
 		log:      log,
-		c:        newClient(cfg.NodeAddr, cfg.Fingerprint),
+		c:        newClient(cfg.Addrs(), cfg.Fingerprint),
 		running:  map[string]*taskRun{},
 		tasksDir: tasksDir(dataDir),
 	}
@@ -114,6 +118,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 		default:
 			backoff = time.Second
+			a.followNode(resp.NodeAddrs)
 			a.apply(ctx, resp)
 			a.st.apply(ctx, resp)
 			// Jitter spreads thousands of clients out so they do not all
@@ -272,4 +277,17 @@ func (a *Agent) shutdown() {
 		}
 	}
 	a.outbox.Close()
+}
+
+// followNode adopts the node's current addresses, so a node whose address
+// changes (a new IP, a newly opened public port) stays reachable.
+func (a *Agent) followNode(addrs []string) {
+	if a.FixedAddrs || len(addrs) == 0 || slices.Equal(addrs, a.cfg.Addrs()) {
+		return
+	}
+	a.cfg.NodeAddrs, a.cfg.NodeAddr = addrs, addrs[0]
+	a.c.setAddrs(addrs)
+	if err := SaveConfig(a.dataDir, a.cfg); err != nil {
+		a.log.Warn("could not save the node's new addresses", "err", err)
+	}
 }

@@ -282,6 +282,9 @@ type HeartbeatRequest struct {
 type HeartbeatResponse struct {
 	Assign []Task   `json:"assign,omitempty"`
 	Cancel []string `json:"cancel,omitempty"`
+	// NodeAddrs is every address the node can be reached on right now, so
+	// clients keep up when the node's addresses change.
+	NodeAddrs []string `json:"nodeAddrs,omitempty"`
 
 	// Pooled storage work for this machine.
 	Fetch     []string     `json:"fetch,omitempty"`  // download these chunks from the node and keep them
@@ -370,9 +373,15 @@ type Result struct {
 
 // JoinCode is everything a client needs to join a node, as one string.
 type JoinCode struct {
-	Addr        string `json:"a"` // host:port of the node's client API
-	Fingerprint string `json:"f"` // SHA-256 of the node's TLS certificate, hex
-	Token       string `json:"t"`
+	Addr        string   `json:"a"`           // host:port of the node's client API
+	More        []string `json:"x,omitempty"` // other addresses to try: VPN, public
+	Fingerprint string   `json:"f"`           // SHA-256 of the node's TLS certificate, hex
+	Token       string   `json:"t"`
+}
+
+// Addrs lists every address in the code, best first.
+func (j JoinCode) Addrs() []string {
+	return append([]string{j.Addr}, j.More...)
 }
 
 const joinPrefix = "sys1-join:"

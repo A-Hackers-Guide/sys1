@@ -30,6 +30,7 @@ import (
 
 	"github.com/A-Hackers-Guide/sys1/internal/journal"
 	"github.com/A-Hackers-Guide/sys1/internal/marketplace"
+	"github.com/A-Hackers-Guide/sys1/internal/nat"
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
 	"github.com/A-Hackers-Guide/sys1/internal/tlsutil"
 )
@@ -37,7 +38,7 @@ import (
 type Config struct {
 	DataDir     string
 	ListenAddr  string   // client API, e.g. ":7443"
-	PublicAddr  string   // host:port clients use; guessed when empty
+	PublicAddr  string   // host:port clients should try first (comma-separated for several); LAN and VPN addresses are added
 	GUIAddr     string   // dashboard, e.g. "127.0.0.1:7700"
 	TrustedKeys []string // marketplace signing keys the owner trusts
 	// Pooled storage: copies kept of app data (default 3), and how much
@@ -65,6 +66,9 @@ type Node struct {
 	catalog    *marketplace.Catalog
 	started    time.Time
 	pool       *pool
+	settings   Settings
+	mapping    *nat.Mapping
+	internet   InternetStatus
 }
 
 func New(cfg Config, log *slog.Logger) (*Node, error) {
@@ -112,7 +116,8 @@ func hashSecret(s string) string {
 func (n *Node) JoinCode() protocol.JoinCode {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return protocol.JoinCode{Addr: n.publicAddr(), Fingerprint: n.fp, Token: n.joinToken}
+	addrs := n.addrsLocked()
+	return protocol.JoinCode{Addr: addrs[0], More: addrs[1:], Fingerprint: n.fp, Token: n.joinToken}
 }
 
 // LocalJoinCode is the join code for the node's own built-in client.
@@ -120,13 +125,6 @@ func (n *Node) LocalJoinCode() protocol.JoinCode {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return protocol.JoinCode{Addr: n.listenAddrFor("127.0.0.1"), Fingerprint: n.fp, Token: n.localToken}
-}
-
-func (n *Node) publicAddr() string {
-	if n.cfg.PublicAddr != "" {
-		return n.cfg.PublicAddr
-	}
-	return n.listenAddrFor(lanIP())
 }
 
 // listenAddrFor returns the client API address, substituting fallback for
@@ -174,6 +172,7 @@ func (n *Node) Serve(ctx context.Context, ready func(apiAddr, guiAddr string)) e
 	n.cfg.ListenAddr = apiLn.Addr().String()
 	n.mu.Unlock()
 	n.saveJoinCode()
+	n.applyInternet()
 
 	api := &http.Server{Handler: n.apiHandler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	gui := &http.Server{Handler: n.guiHandler(guiLn.Addr().String()), ReadHeaderTimeout: 10 * time.Second}
@@ -192,6 +191,12 @@ func (n *Node) Serve(ctx context.Context, ready func(apiAddr, guiAddr string)) e
 	defer cancel()
 	api.Shutdown(sctx)
 	gui.Shutdown(sctx)
+	n.mu.Lock()
+	m := n.mapping
+	n.mu.Unlock()
+	if m != nil {
+		m.Close() // close the router port again
+	}
 	n.mu.Lock()
 	n.compactLocked()
 	n.j.Close()
@@ -351,6 +356,7 @@ func (n *Node) handleHeartbeat(w http.ResponseWriter, r *http.Request, a *Agent)
 		}
 	}
 	n.storageHeartbeatLocked(a, req.Storage, &resp, now)
+	resp.NodeAddrs = n.addrsLocked()
 	writeJSON(w, resp)
 }
 

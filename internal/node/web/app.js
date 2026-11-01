@@ -246,7 +246,16 @@ function renderApps(s) {
 function renderAdd(s) {
   const input = $("#joincode");
   if (input.value !== s.joinCode) input.value = s.joinCode;
-  $("#addr").textContent = s.publicAddr;
+  fill($("#addrs"), (s.addrs || []).map((a) => h("li", {}, a)));
+  const net = s.internet || {};
+  const box = $("#internet");
+  if (document.activeElement !== box) box.checked = !!net.on;
+  $("#inet-port").textContent = (s.addrs?.[0] || ":7443").split(":").pop();
+  const st = $("#inet-status");
+  st.className = "small " + (net.working && !net.cgnat ? "ok-text" : net.on && net.problem ? "bad-text" : "muted");
+  st.textContent = !net.on ? "Off. Machines join over your local network or a VPN." :
+    net.working && !net.cgnat ? `On: your router (${net.method}) forwards the port. The public address is in the join code.` :
+    net.problem || "Working on it…";
   $("#fp").textContent = s.fingerprint.match(/.{1,4}/g).join(" ");
   $("#cli").textContent = `sys0 join ${s.joinCode}`;
 }
@@ -306,6 +315,11 @@ document.querySelectorAll("[data-goto]").forEach((b) => b.addEventListener("clic
   if (!p.compatible) { toast(p.reason); return; }
   openDeploy(p);
 }));
+
+$("#internet").addEventListener("change", async (e) => {
+  try { await api("/api/internet", { on: e.target.checked }); toast(e.target.checked ? "Asking your router to open the port" : "Closing the port on your router"); refresh(); }
+  catch (err) { toast(err.message); e.target.checked = !e.target.checked; }
+});
 
 $("#copy").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText($("#joincode").value); toast("Join code copied"); }

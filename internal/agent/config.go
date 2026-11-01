@@ -13,6 +13,7 @@ import (
 // directory as config.json, readable only by its owner.
 type Config struct {
 	NodeAddr    string         `json:"nodeAddr"`
+	NodeAddrs   []string       `json:"nodeAddrs,omitempty"` // every address to try, best first
 	Fingerprint string         `json:"fingerprint"`
 	AgentID     string         `json:"agentId"`
 	Secret      string         `json:"secret"`
@@ -28,6 +29,14 @@ type Config struct {
 const DefaultStorageGB = 10
 
 var ErrNotConfigured = errors.New("sys0 is not set up yet: run `sys0 setup` (or `sys0 join <code>`)")
+
+// Addrs is every node address to try, best first.
+func (c Config) Addrs() []string {
+	if len(c.NodeAddrs) > 0 {
+		return c.NodeAddrs
+	}
+	return []string{c.NodeAddr}
+}
 
 func configPath(dataDir string) string { return filepath.Join(dataDir, "config.json") }
 

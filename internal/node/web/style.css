@@ -197,3 +197,10 @@ select {
 }
 h2.spaced { margin-top: 24px; }
 .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+
+.addrs { margin: 0 0 12px; padding-left: 20px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+.internet { border-top: 1px solid var(--line); margin: 16px 0; padding-top: 12px; }
+.switch { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+.ok-text { color: var(--ok); }
+.bad-text { color: var(--bad); }

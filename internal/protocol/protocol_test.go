@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -8,8 +9,13 @@ import (
 func TestJoinCodeRoundTrip(t *testing.T) {
 	in := JoinCode{Addr: "192.168.1.5:7443", Fingerprint: strings.Repeat("ab", 32), Token: "tok"}
 	out, err := ParseJoinCode("  " + in.String() + "\n")
-	if err != nil || out != in {
+	if err != nil || !reflect.DeepEqual(out, in) {
 		t.Fatalf("got %+v, %v", out, err)
+	}
+	in.More = []string{"100.101.102.103:7443", "203.0.113.9:7443"}
+	out, err = ParseJoinCode(in.String())
+	if err != nil || len(out.Addrs()) != 3 || out.Addrs()[2] != "203.0.113.9:7443" {
+		t.Fatalf("multi-address code: %+v, %v", out, err)
 	}
 	if _, err := ParseJoinCode("sys1-join:!!!"); err == nil {
 		t.Fatal("damaged code accepted")

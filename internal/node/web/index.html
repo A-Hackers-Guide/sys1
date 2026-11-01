@@ -125,7 +125,13 @@
           <button id="copy" class="primary">Copy</button>
         </div>
       </label>
-      <p class="muted">Machines connect to <code id="addr"></code> and check the node's identity using fingerprint <code id="fp" class="fp"></code>, so nobody can pretend to be this node.</p>
+      <p class="muted">Machines try these addresses in order and check the node's identity using fingerprint <code id="fp" class="fp"></code>, so nobody can pretend to be this node.</p>
+      <ul id="addrs" class="addrs"></ul>
+      <div class="internet">
+        <label class="switch"><input type="checkbox" id="internet"> <b>Reachable from the internet</b></label>
+        <p class="muted small">Asks your router (UPnP or NAT-PMP) to open port <span id="inet-port">7443</span> to this node, so machines outside your home network can join without you setting up port forwarding. Only sys1's encrypted client connection is opened; the dashboard stays on this machine. Turn it off to close the port again.</p>
+        <p id="inet-status" class="small"></p>
+      </div>
       <p class="muted">Command-line install: <code id="cli"></code></p>
       <button id="rotate" class="danger ghost">Make a new join code</button>
       <span class="muted small">Old codes stop working. Machines that already joined stay connected.</span>
