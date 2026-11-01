@@ -2,6 +2,12 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- **Standby nodes** ([#39](https://github.com/A-Hackers-Guide/sys1/issues/39)): a second node keeps a live copy of the pool and takes over within seconds when the main node goes down, then hands back when it returns and is steady. A **witness** (`sys1 cluster join --witness`) on any third machine breaks ties, so a broken link never leaves two nodes in charge. `sys1 cluster prefer <node>` or **Make preferred** on the dashboard picks which node leads when it can. See [Clusters](docs/CLUSTER.md#a-standby-and-a-witness).
+
 ## [0.9.2] - 2026-11-01
 
 ### Fixed
