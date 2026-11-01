@@ -1,4 +1,4 @@
-// node --test intake/
+// node --test intake/worker.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
 import { clean, scrub, body } from "./worker.js";

@@ -53,4 +53,4 @@ The intake is a Cloudflare Worker. Deploying it needs a Cloudflare account and a
    ```
 3. Put the Worker's URL in `crash.DefaultIntake` ([internal/crash/store.go](../internal/crash/store.go)) and release.
 
-`node --test intake/` runs the intake's tests.
+`node --test intake/worker.test.mjs` runs the intake's tests.
