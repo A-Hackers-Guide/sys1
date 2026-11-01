@@ -96,17 +96,17 @@ Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cy
 - ✅ Every install updates itself, package managers included; **Update all machines now**
 - ✅ Health checks restart hung apps; Prometheus metrics; plain-words problems on every machine card; `sys0 doctor`
 
-## 📦 v0.10: Package repositories
+## ✅ v1.0: Stable (done)
 
-- F-Droid
-- Signed apt and dnf repositories on GitHub Pages (#6, needs the project's signing key)
+- Standby nodes: a second node takes over while the main node is down and hands back when it returns and is steady, with a witness on any third machine so there's never two nodes in charge (#39)
+- From 1.0 on, versions follow semantic versioning: every 1.x node and client work together, and upgrades from earlier releases are tested in CI on every change
 
-## 🧱 v1.0: Stable
+## 🔒 v1.0.x: Hardening
 
-- A standby node: a second machine (one you choose, or one sys1 picks) takes over while the node is down and hands back when it returns, with the pool's machines as tie-breakers so there's never two nodes in charge (#39)
-- Protocol and data formats frozen, with upgrade tests from every earlier release
 - A full security review of the client sandbox, TLS pinning and pooled-storage crypto
 - Every doc checked against the code
+- Package repositories: F-Droid, and signed apt and dnf repositories on GitHub Pages (#6, needs the project's signing key)
+- Automatic standby choice: sys1 picks a standby and a witness from your own machines
 
 ## 🧩 v1.1: Integrations
 

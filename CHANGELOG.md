@@ -2,7 +2,9 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [1.0.0] - 2026-11-01
+
+sys1 1.0: a pool that keeps running when its main computer doesn't. From this release on, versions follow semantic versioning, so every 1.x node and client work together.
 
 ### Added
 
