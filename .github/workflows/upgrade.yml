@@ -1,0 +1,50 @@
+name: Upgrade
+
+# Upgrades a pool from every earlier release to this commit: the node keeps
+# its identity, join code, machines and apps. Runs on changes and before
+# every release.
+on:
+  push:
+    branches: [main]
+    paths: ["internal/**", "cmd/**", "go.mod", ".github/ci-upgrade.sh", ".github/workflows/upgrade.yml"]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  releases:
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.list.outputs.tags }}
+    steps:
+      - id: list
+        run: |
+          # v0.3.0 is the first release whose data format later ones keep.
+          tags=$(gh release list -R ${{ github.repository }} -L 100 --exclude-drafts --exclude-pre-releases --json tagName \
+            -q '[.[].tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | select(. != "v0.1.0" and . != "v0.2.0")]')
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "$tags"
+
+  upgrade:
+    needs: releases
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        from: ${{ fromJSON(needs.releases.outputs.tags) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build this commit
+        run: |
+          mkdir new
+          go build -ldflags "-X github.com/A-Hackers-Guide/sys1/internal/version.Version=99.0.0" -o new/ ./cmd/sys0 ./cmd/sys1
+      - name: Upgrade from ${{ matrix.from }}
+        run: .github/ci-upgrade.sh ${{ matrix.from }} new
