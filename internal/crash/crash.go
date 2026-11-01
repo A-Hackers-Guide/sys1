@@ -233,8 +233,10 @@ var patterns = []struct {
 	{regexp.MustCompile(`(?:[A-Za-z]:\\|\\\\)[^\s"':]+`), "<path>"},
 	{regexp.MustCompile(`(?:^|[\s"'=(])(/[^\s"':,)]+)`), " <path>"},
 	{regexp.MustCompile(`\b[A-Za-z0-9+/_=-]{24,}\b`), "<redacted>"},
-	{regexp.MustCompile(`\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:local|lan|home|internal|localdomain|com|net|org|io|dev|app|me|de|uk|fr|nl|jp|cn|ru|br|in|au|ca|us|eu|tv|cloud|xyz)\b`), "<host>"},
-	{regexp.MustCompile(`@`), "(at)"}, // no @mentions in GitHub issues
+	{regexp.MustCompile(`\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:local|lan|home|internal|localdomain|localhost|arpa|box|corp|intranet|private|com|net|org|io|dev|app|me|de|uk|fr|nl|jp|cn|ru|br|in|au|ca|us|eu|tv|cloud|xyz)\b`), "<host>"},
+	{regexp.MustCompile(`@`), "(at)"},   // no @mentions in GitHub issues
+	{regexp.MustCompile("`"), "'"},      // can't close the code block it's shown in
+	{regexp.MustCompile(`\]\(`), "] ("}, // no markdown links
 }
 
 const maxMessage = 400
@@ -257,27 +259,13 @@ func (sc *Scrubber) Scrub(s string) string {
 }
 
 func replaceFold(s, old, repl string) string {
-	lower, lowOld := strings.ToLower(s), strings.ToLower(old)
-	var b strings.Builder
-	for {
-		i := strings.Index(lower, lowOld)
-		if i < 0 {
-			b.WriteString(s)
-			return b.String()
-		}
-		b.WriteString(s[:i])
-		b.WriteString(repl)
-		s, lower = s[i+len(old):], lower[i+len(old):]
-	}
+	return regexp.MustCompile("(?i)"+regexp.QuoteMeta(old)).ReplaceAllLiteralString(s, repl)
 }
 
 // Valid checks a report that arrived from elsewhere and scrubs it again,
 // so nothing personal passes even from a modified client.
 func (r *Report) Valid(s *Scrubber) bool {
-	if r.App != "sys0" && r.App != "sys1" || len(r.Frames) > maxFrames || len(r.Signature) != 12 {
-		return false
-	}
-	if _, err := hex.DecodeString(r.Signature); err != nil {
+	if r.App != "sys0" && r.App != "sys1" || len(r.Frames) > maxFrames {
 		return false
 	}
 	for _, f := range []*string{&r.Version, &r.OS, &r.Arch} {
@@ -287,10 +275,12 @@ func (r *Report) Valid(s *Scrubber) bool {
 	}
 	r.Message = s.Scrub(r.Message)
 	for _, f := range r.Frames {
-		if len(f) > 300 || !frameShape.MatchString(f) {
+		if len(f) > 300 || !frameShape.MatchString(f) || strings.Contains(f, "](") || strings.Contains(f, "//") {
 			return false
 		}
 	}
+	// The signature is the bug's, not the sender's to choose.
+	r.Signature = signature(r.App, r)
 	if r.Count < 1 {
 		r.Count = 1
 	}

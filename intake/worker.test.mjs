@@ -24,3 +24,17 @@ test("refuses anything else", () => {
 test("removes mentions, paths and links", () => {
   assert.equal(scrub("open /home/alice/x: @octocat see https://evil.example"), "open <path>: (at)octocat see <url>");
 });
+
+test("computes the same signature as sys1", async () => {
+  // The same value internal/crash/sig_test.go expects from Go.
+  const { signature } = await import("./worker.js");
+  const r = clean(good);
+  r.signature = await signature(r);
+  assert.equal(r.signature, "8b49c6d1a16e");
+});
+
+test("can't break out of the code block or link anywhere", () => {
+  assert.equal(clean({ ...good, frames: ["[Download](//evil.example/x) (a.go:1)"] }), null);
+  const r = clean({ ...good, message: "``` [click](https://x) " });
+  assert.ok(!r.message.includes("`") && !r.message.includes("]("));
+});

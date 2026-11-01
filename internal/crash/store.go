@@ -82,7 +82,7 @@ func (s *Store) Add(r Report) {
 		e = &Entry{Report: r}
 		s.data.Entries[r.Signature] = e
 	} else {
-		e.Count += r.Count
+		e.Count = min(e.Count+r.Count, 1_000_000)
 		if r.Last.After(e.Last) {
 			e.Last, e.Message, e.Frames, e.Version = r.Last, r.Message, r.Frames, r.Version
 		}
@@ -94,7 +94,7 @@ func (s *Store) Add(r Report) {
 	for _, v := range e.Versions {
 		found = found || v == r.Version
 	}
-	if !found {
+	if !found && len(e.Versions) < 20 {
 		e.Versions = append(e.Versions, r.Version)
 	}
 	s.saveLocked()

@@ -55,7 +55,8 @@ func TestCrashReportsReachTheIntake(t *testing.T) {
 	if e := n.crashes.List()[0]; e.Issue != "https://github.com/A-Hackers-Guide/sys1/issues/99" {
 		t.Fatalf("issue link not kept: %+v", e)
 	}
-	n.AddCrash(*rep) // it happens again, but within a day: not sent yet
+	rep.Signature = list[0].Signature // the node's own, computed from the frames
+	n.AddCrash(*rep)                  // it happens again, but within a day: not sent yet
 	if s.SendDue(context.Background()) != 0 {
 		t.Fatal("a repeat was sent within a day")
 	}

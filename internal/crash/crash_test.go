@@ -103,6 +103,17 @@ func TestScrub(t *testing.T) {
 	}
 }
 
+func TestValidSetsTheSignature(t *testing.T) {
+	r := Report{App: "sys0", Version: "0.8.0", OS: "linux", Arch: "amd64", Signature: "ffffffffffff", Message: "close ``` and [x](y)",
+		Frames: []string{"github.com/A-Hackers-Guide/sys1/internal/agent.(*Agent).Run (github.com/A-Hackers-Guide/sys1/internal/agent/agent.go:12)"}}
+	if !r.Valid(&Scrubber{}) || r.Signature == "ffffffffffff" || len(r.Signature) != 12 {
+		t.Fatalf("signature not recomputed: %q", r.Signature)
+	}
+	if strings.Contains(r.Message, "`") || strings.Contains(r.Message, "](") {
+		t.Fatalf("message can still break out of its code block: %q", r.Message)
+	}
+}
+
 func TestValidRejectsForgedReports(t *testing.T) {
 	s := &Scrubber{}
 	good := Report{App: "sys0", Version: "0.8.0", OS: "linux", Arch: "amd64", Signature: "0123456789ab",
@@ -112,7 +123,7 @@ func TestValidRejectsForgedReports(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*Report){
 		"app":       func(r *Report) { r.App = "evil" },
-		"signature": func(r *Report) { r.Signature = "zz" },
+		"link":      func(r *Report) { r.Frames = []string{"[Download_fix](//evil.example/x) (a.go:1)"} },
 		"frame":     func(r *Report) { r.Frames = []string{"my password is hunter2"} },
 		"version":   func(r *Report) { r.Version = "1.0 see http://x" },
 	} {

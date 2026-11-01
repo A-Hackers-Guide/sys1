@@ -124,7 +124,7 @@ func TestClusterSurvivesLeaderLoss(t *testing.T) {
 	}
 
 	// A machine joins with a code naming all three nodes.
-	jc := a.n.JoinCode()
+	jc := a.n.OwnerJoinCode()
 	if len(jc.Addrs()) != 3 {
 		t.Fatalf("join code should list all 3 nodes: %v", jc.Addrs())
 	}

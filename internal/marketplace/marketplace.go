@@ -31,6 +31,11 @@ type Input struct {
 	Label   string `json:"label"`
 	Secret  bool   `json:"secret,omitempty"`
 	Default string `json:"default,omitempty"`
+	// Example is a valid value used to check the package when there's no
+	// default (and as a hint in the dashboard).
+	Example string `json:"example,omitempty"`
+	// Optional inputs may be left empty.
+	Optional bool `json:"optional,omitempty"`
 }
 
 type Manifest struct {
@@ -74,7 +79,14 @@ func (m Manifest) Validate() error {
 	// may come from an input.
 	vals := map[string]string{}
 	for _, in := range m.Inputs {
-		vals[in.Name] = "x"
+		switch {
+		case in.Example != "":
+			vals[in.Name] = in.Example
+		case in.Default != "":
+			vals[in.Name] = in.Default
+		default:
+			vals[in.Name] = "x"
+		}
 	}
 	return m.Apply(vals).Validate()
 }
@@ -136,6 +148,18 @@ func (m Manifest) Apply(values map[string]string) protocol.TaskSpec {
 		for k, v := range m.Run.Env {
 			spec.Env[k] = sub(v)
 		}
+	}
+	if m.Run.Ports != nil {
+		spec.Ports = make([]string, len(m.Run.Ports))
+		for i, p := range m.Run.Ports {
+			spec.Ports[i] = sub(p)
+		}
+	}
+	if m.Run.Build != nil {
+		b := *m.Run.Build
+		b.Repo, b.Branch, b.Dir, b.Dockerfile = strings.TrimSpace(sub(b.Repo)), strings.TrimSpace(sub(b.Branch)), sub(b.Dir), sub(b.Dockerfile)
+		b.Repo = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(b.Repo, "https://"), "github.com/"), ".git")
+		spec.Build = &b
 	}
 	if m.Run.VM != nil {
 		// In cloud-init YAML, inputs become quoted strings, so a value

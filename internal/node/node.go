@@ -69,6 +69,9 @@ type Node struct {
 	tasks     map[string]*Task
 	jobs      map[string]*Job
 	joinToken string
+	// ownerToken is in the join code for the owner's own machines; only
+	// machines that joined with it are trusted as the owner's.
+	ownerToken string
 	// localToken lets the node's own built-in client join as an owner
 	// machine. It lives only in memory and never leaves this process.
 	localToken string
@@ -83,13 +86,16 @@ type Node struct {
 	raftAddr    string
 	pendingSeed bool
 
-	crashes  *crash.Store
-	scrubber *crash.Scrubber
+	crashes       *crash.Store
+	scrubber      *crash.Scrubber
+	crashQuota    map[string]int // reports per machine today
+	crashQuotaDay string
+	github        *githubWatch
 }
 
 func New(cfg Config, log *slog.Logger) (*Node, error) {
 	n := &Node{cfg: cfg, log: log, agents: map[string]*Agent{}, tasks: map[string]*Task{}, jobs: map[string]*Job{}, started: time.Now(),
-		crashes: crash.OpenStore(cfg.DataDir), scrubber: crash.NewScrubber(cfg.DataDir)}
+		crashes: crash.OpenStore(cfg.DataDir), scrubber: crash.NewScrubber(cfg.DataDir), github: newGithubWatch()}
 	var err error
 	if n.cert, err = tlsutil.LoadOrCreate(cfg.DataDir); err != nil {
 		return nil, err
@@ -107,6 +113,10 @@ func New(cfg Config, log *slog.Logger) (*Node, error) {
 	if n.joinToken == "" {
 		n.joinToken = randomToken()
 		n.persistLocked(event{JoinToken: n.joinToken})
+	}
+	if n.ownerToken == "" {
+		n.ownerToken = randomToken()
+		n.persistLocked(event{OwnerToken: n.ownerToken})
 	}
 	// Machines get a grace period after a node restart before their work
 	// is moved, so a quick node reboot does not reshuffle the whole pool.
@@ -129,12 +139,22 @@ func hashSecret(s string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// JoinCode is what a new machine pastes into its installer.
+// JoinCode is what a machine lent by someone else pastes into its
+// installer: it joins as a community machine.
 func (n *Node) JoinCode() protocol.JoinCode {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	addrs := n.addrsLocked()
 	return protocol.JoinCode{Addr: addrs[0], More: addrs[1:], Fingerprint: n.fp, Token: n.joinToken}
+}
+
+// OwnerJoinCode is the join code for the owner's own machines, which may
+// run owner-only work (VMs, native programs, unauthenticated services).
+func (n *Node) OwnerJoinCode() protocol.JoinCode {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	addrs := n.addrsLocked()
+	return protocol.JoinCode{Addr: addrs[0], More: addrs[1:], Fingerprint: n.fp, Token: n.ownerToken}
 }
 
 // LocalJoinCode is the join code for the node's own built-in client.
@@ -218,6 +238,7 @@ func (n *Node) Serve(ctx context.Context, ready func(apiAddr, guiAddr string)) e
 	go func() { errc <- gui.Serve(guiLn) }()
 	go n.loop(ctx)
 	go (&crash.Sender{Store: n.crashes, Intake: n.crashIntake(), Log: n.log}).Loop(ctx)
+	go n.watchGitHub(ctx)
 	if ready != nil {
 		ready(apiLn.Addr().String(), guiLn.Addr().String())
 	}
@@ -314,14 +335,20 @@ func (n *Node) handleRegister(w http.ResponseWriter, r *http.Request) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	local := subtle.ConstantTimeCompare([]byte(req.JoinToken), []byte(n.localToken)) == 1
-	if !local && subtle.ConstantTimeCompare([]byte(req.JoinToken), []byte(n.joinToken)) != 1 {
+	owner := subtle.ConstantTimeCompare([]byte(req.JoinToken), []byte(n.ownerToken)) == 1
+	if !local && !owner && subtle.ConstantTimeCompare([]byte(req.JoinToken), []byte(n.joinToken)) != 1 {
 		http.Error(w, "this join code is wrong or has been replaced; copy a fresh one from the node", http.StatusForbidden)
 		return
 	}
-	if local {
+	// The code decides how far a machine is trusted, not the machine: it
+	// may only ask for less (an owner code used on a lent machine).
+	switch {
+	case local:
 		req.Trust = protocol.TrustOwner
-	}
-	if !req.Trust.Valid() {
+	case owner && req.Trust == protocol.TrustCommunity:
+	case owner:
+		req.Trust = protocol.TrustOwner
+	default:
 		req.Trust = protocol.TrustCommunity
 	}
 	name := strings.TrimSpace(req.Name)
@@ -339,7 +366,7 @@ func (n *Node) handleRegister(w http.ResponseWriter, r *http.Request) {
 	n.agents[a.ID] = a
 	n.persistLocked(event{Agent: a})
 	n.log.Info("machine joined", "name", a.Name, "os", a.Resources.OS, "trust", a.Trust)
-	writeJSON(w, protocol.RegisterResponse{AgentID: a.ID, Secret: secret})
+	writeJSON(w, protocol.RegisterResponse{AgentID: a.ID, Secret: secret, Trust: a.Trust})
 }
 
 // withAgent authenticates "Authorization: Bearer <id>.<secret>".
@@ -497,6 +524,13 @@ func (n *Node) queueLocked(pkg, title string, spec protocol.TaskSpec) (*Task, er
 		return nil, err
 	}
 	t := &Task{ID: randomToken()[:12], Package: pkg, Title: title, Spec: spec, State: StateQueued, Attempt: 1, Created: time.Now(), Message: "Finding the best machine"}
+	if !buildReady(spec) {
+		t.Message = "Asking GitHub for the latest commit of " + spec.Build.Repo
+		select {
+		case n.github.kick <- struct{}{}:
+		default:
+		}
+	}
 	n.tasks[t.ID] = t
 	n.saveTaskLocked(t)
 	n.scheduleLocked(time.Now())
@@ -551,8 +585,9 @@ func (n *Node) RemoveAgent(id string) error {
 // joined keep working; they authenticate with their own secret.
 func (n *Node) RotateJoinCode() {
 	n.mu.Lock()
-	n.joinToken = randomToken()
+	n.joinToken, n.ownerToken = randomToken(), randomToken()
 	n.persistLocked(event{JoinToken: n.joinToken})
+	n.persistLocked(event{OwnerToken: n.ownerToken})
 	n.mu.Unlock()
 	n.saveJoinCode()
 }
@@ -565,8 +600,12 @@ const ClusterCodeFile = "cluster-code.txt"
 // it without disturbing a running node.
 const JoinCodeFile = "join-code.txt"
 
+// OwnerJoinCodeFile holds the join code for the owner's own machines.
+const OwnerJoinCodeFile = "owner-join-code.txt"
+
 func (n *Node) saveJoinCode() {
 	os.WriteFile(filepath.Join(n.cfg.DataDir, JoinCodeFile), []byte(n.JoinCode().String()+"\n"), 0o600)
+	os.WriteFile(filepath.Join(n.cfg.DataDir, OwnerJoinCodeFile), []byte(n.OwnerJoinCode().String()+"\n"), 0o600)
 	if code, err := n.ClusterCode(); err == nil {
 		os.WriteFile(filepath.Join(n.cfg.DataDir, ClusterCodeFile), []byte(code+"\n"), 0o600)
 	}

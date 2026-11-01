@@ -44,24 +44,27 @@ type Agent struct {
 }
 
 type Task struct {
-	ID         string            `json:"id"`
-	Package    string            `json:"package"`
-	Title      string            `json:"title"`
-	Spec       protocol.TaskSpec `json:"spec"`
-	State      string            `json:"state"`
-	AgentID    string            `json:"agentId,omitempty"`
-	Attempt    int               `json:"attempt"`
-	Excluded   []string          `json:"excluded,omitempty"` // machines it crashed on
-	Message    string            `json:"message,omitempty"`
-	Output     string            `json:"output,omitempty"`
-	ExitCode   int               `json:"exitCode"`
-	Checkpoint []byte            `json:"checkpoint,omitempty"`
-	Snapshot   string            `json:"snapshot,omitempty"` // latest volume snapshot root
-	SnapshotAt time.Time         `json:"snapshotAt,omitempty"`
-	Screen     *protocol.Screen  `json:"-"`                // a running VM's display, as last reported
-	Parent     string            `json:"parent,omitempty"` // the batch job or group this task belongs to
-	Shard      int               `json:"shard,omitempty"`
-	Replica    int               `json:"replica,omitempty"`
+	ID      string            `json:"id"`
+	Package string            `json:"package"`
+	Title   string            `json:"title"`
+	Spec    protocol.TaskSpec `json:"spec"`
+	State   string            `json:"state"`
+	AgentID string            `json:"agentId,omitempty"`
+	Attempt int               `json:"attempt"`
+	// AttemptBase is subtracted from Attempt when counting failures: a
+	// redeploy starts a new count.
+	AttemptBase int              `json:"attemptBase,omitempty"`
+	Excluded    []string         `json:"excluded,omitempty"` // machines it crashed on
+	Message     string           `json:"message,omitempty"`
+	Output      string           `json:"output,omitempty"`
+	ExitCode    int              `json:"exitCode"`
+	Checkpoint  []byte           `json:"checkpoint,omitempty"`
+	Snapshot    string           `json:"snapshot,omitempty"` // latest volume snapshot root
+	SnapshotAt  time.Time        `json:"snapshotAt,omitempty"`
+	Screen      *protocol.Screen `json:"-"`                // a running VM's display, as last reported
+	Parent      string           `json:"parent,omitempty"` // the batch job or group this task belongs to
+	Shard       int              `json:"shard,omitempty"`
+	Replica     int              `json:"replica,omitempty"`
 	// Tasks with the same SpreadKey never share a machine (a group's
 	// members, a verified piece's replicas).
 	SpreadKey string    `json:"spreadKey,omitempty"`
@@ -81,11 +84,12 @@ func (t *Task) excludes(agentID string) bool {
 // event is one record in the node's journal. Replaying every event in
 // order rebuilds the node's state after a crash or power cut.
 type event struct {
-	Agent     *Agent `json:"agent,omitempty"`
-	Task      *Task  `json:"task,omitempty"`
-	DelAgent  string `json:"delAgent,omitempty"`
-	DelTask   string `json:"delTask,omitempty"`
-	JoinToken string `json:"joinToken,omitempty"`
+	Agent      *Agent `json:"agent,omitempty"`
+	Task       *Task  `json:"task,omitempty"`
+	DelAgent   string `json:"delAgent,omitempty"`
+	DelTask    string `json:"delTask,omitempty"`
+	JoinToken  string `json:"joinToken,omitempty"`
+	OwnerToken string `json:"ownerToken,omitempty"`
 
 	Snapshot    *Snapshot `json:"snapshot,omitempty"`
 	DelSnapshot string    `json:"delSnapshot,omitempty"`
@@ -113,6 +117,8 @@ func (n *Node) replay(b []byte) error {
 		delete(n.tasks, e.DelTask)
 	case e.JoinToken != "":
 		n.joinToken = e.JoinToken
+	case e.OwnerToken != "":
+		n.ownerToken = e.OwnerToken
 	case e.Snapshot != nil:
 		n.pool.snapshots[e.Snapshot.Root] = e.Snapshot
 	case e.DelSnapshot != "":
@@ -158,6 +164,7 @@ func (n *Node) recordsLocked() [][]byte {
 		recs = append(recs, b)
 	}
 	add(event{JoinToken: n.joinToken})
+	add(event{OwnerToken: n.ownerToken})
 	add(event{Settings: &n.settings})
 	for _, a := range n.agents {
 		add(event{Agent: a})

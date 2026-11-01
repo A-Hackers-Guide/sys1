@@ -10,7 +10,13 @@ All notable changes are listed here. Versions follow [semantic versioning](https
 - **Crash reports**: the panic and crashing goroutine of every sys0 and sys1 crash, scrubbed of names, addresses, paths, codes and secrets; machines hand them to their node; **Machines → Crash reports** on the dashboard, with a prefilled "Report on GitHub" link; nodes forward them to the project's crash intake (`intake/`, a Cloudflare Worker that alone holds a GitHub token) which files one `crash` issue per bug. `sys0 crash-reports on|off`, `--no-crash-reports`, a dashboard switch. docs/CRASHES.md.
 - Release checksums are signed with Sigstore (`checksums.txt.sigstore.json`), from v0.7.0 on.
 - **A Sileo/Zebra/Cydia repository** at `https://a-hackers-guide.github.io/sys1/cydia/`, rebuilt from each release.
+- **Deploy from GitHub**: a package that builds a public repository's Dockerfile on one of your machines and runs it; the node follows the branch (conditional requests, no token or webhook) and redeploys each new commit, keeping the app's data. Packages can use `run.build` too. docs/GITHUB.md.
+- An upgrade test in CI from every earlier release: the node keeps its identity, join code, machines and apps.
 - **Battery detection on FreeBSD, DragonFly, OpenBSD and NetBSD** (`hw.acpi.acline`, `apm -a`, `envstat`): laptops pause on battery like everywhere else.
+
+### Fixed
+
+- A relative `--data` folder broke containers (Docker needs absolute volume paths); data folders are now made absolute.
 
 ## [0.7.0] - 2026-11-01
 

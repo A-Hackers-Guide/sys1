@@ -3,6 +3,7 @@ package node
 import (
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/crash"
 )
@@ -25,7 +26,23 @@ func (n *Node) crashIntake() string {
 // AddCrash records a crash of this node's own sys1.
 func (n *Node) AddCrash(r crash.Report) { n.crashes.Add(r) }
 
+// Each machine may send a few reports a day; a machine stuck crashing
+// doesn't need to report every time, and nobody can fill the store.
+const crashReportsPerDay = 20
+
 func (n *Node) handleCrash(w http.ResponseWriter, r *http.Request, a *Agent) {
+	n.mu.Lock()
+	day := time.Now().UTC().Format("2006-01-02")
+	if n.crashQuota == nil || n.crashQuotaDay != day {
+		n.crashQuota, n.crashQuotaDay = map[string]int{}, day
+	}
+	n.crashQuota[a.ID]++
+	over := n.crashQuota[a.ID] > crashReportsPerDay
+	n.mu.Unlock()
+	if over {
+		writeJSON(w, struct{}{}) // accepted and dropped, so the machine stops resending
+		return
+	}
 	var rep crash.Report
 	if !readJSON(w, r, 64<<10, &rep) {
 		return

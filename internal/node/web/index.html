@@ -127,15 +127,23 @@
       <h2>Add a machine to the pool</h2>
       <ol class="steps">
         <li><b>Install sys0</b> on the other machine: download it from the <a href="https://a-hackers-guide.github.io/sys1/#download" target="_blank" rel="noopener">sys1 website</a> or your package manager.</li>
-        <li><b>Paste this join code</b> into the installer when it asks.</li>
+        <li><b>Paste a join code</b> into the installer when it asks.</li>
         <li>That's it. sys0 goes quiet and the machine appears here.</li>
       </ol>
-      <label class="field">Join code
+      <label class="field">Join code for <b>your own machines</b>
+        <div class="copyrow">
+          <input id="ownercode" readonly>
+          <button id="copy-owner" class="primary">Copy</button>
+        </div>
+      </label>
+      <p class="muted small">Your own machines can also run virtual machines, native programs and apps without a password. Keep this code to yourself.</p>
+      <label class="field">Join code to <b>share with other people</b>
         <div class="copyrow">
           <input id="joincode" readonly>
           <button id="copy" class="primary">Copy</button>
         </div>
       </label>
+      <p class="muted small">Machines lent by others only run sandboxed apps, with no access to their owner's network.</p>
       <p class="muted">Machines try these addresses in order and check the node's identity using fingerprint <code id="fp" class="fp"></code>, so nobody can pretend to be this node.</p>
       <ul id="addrs" class="addrs"></ul>
       <div class="internet">
@@ -144,7 +152,7 @@
         <p id="inet-status" class="small"></p>
       </div>
       <p class="muted">Command-line install: <code id="cli"></code></p>
-      <button id="rotate" class="danger ghost">Make a new join code</button>
+      <button id="rotate" class="danger ghost">Make new join codes</button>
       <span class="muted small">Old codes stop working. Machines that already joined stay connected.</span>
     </div>
     <div class="panel spaced-panel">
@@ -164,13 +172,14 @@
       <div class="card integ">
         <div class="icon">🐙</div>
         <h3>GitHub</h3>
-        <p>Use spare capacity as a self-hosted GitHub Actions runner for your repositories.</p>
-        <button class="primary" data-goto="github-runner">Add a runner</button>
+        <p>Deploy a repository's Dockerfile to the pool, redeployed on every new commit, or use spare capacity as a self-hosted Actions runner.</p>
+        <button class="primary" data-goto="github-app">Deploy a repository</button>
+        <button class="ghost" data-goto="github-runner">Add a runner</button>
       </div>
       <div class="card integ soon">
         <div class="icon">🧩</div>
         <h3>More on the way</h3>
-        <p>Deploy-from-GitHub, Cloudflare DNS, and others are on the roadmap. Suggest one in the issue tracker.</p>
+        <p>Cloudflare DNS, webhooks and others are on the roadmap. Suggest one in the issue tracker.</p>
         <a class="button ghost" href="https://github.com/A-Hackers-Guide/sys1/issues" target="_blank" rel="noopener">Open issues</a>
       </div>
     </div>

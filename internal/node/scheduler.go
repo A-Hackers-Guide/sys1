@@ -129,7 +129,7 @@ func (n *Node) scheduleLocked(now time.Time) {
 		var best *Agent
 		bestScore := -1.0
 		for _, a := range n.agents {
-			if !n.online(a, now) || t.excludes(a.ID) || !canRun(a, t.Spec) || busy[t.SpreadKey][a.ID] {
+			if !buildReady(t.Spec) || !n.online(a, now) || t.excludes(a.ID) || !canRun(a, t.Spec) || busy[t.SpreadKey][a.ID] {
 				continue
 			}
 			if j := n.jobs[t.Parent]; j != nil && j.Verify > 0 && a.Disagreed >= disagreeLimit {
@@ -166,7 +166,7 @@ func (n *Node) requeueLocked(t *Task, why string, blame bool) {
 	}
 	t.AgentID = ""
 	t.Attempt++
-	if t.Attempt > MaxAttempts {
+	if t.Attempt-t.AttemptBase > MaxAttempts {
 		t.State, t.Message = StateFailed, "gave up after "+strconv.Itoa(MaxAttempts)+" attempts: "+why
 	} else {
 		t.State, t.Message = StateQueued, why

@@ -24,10 +24,14 @@ const maxLogBytes = 10 << 20
 
 // execute runs one task attempt under the watchdog.
 func (a *Agent) execute(ctx context.Context, t protocol.Task) protocol.Result {
+	res := protocol.Result{TaskID: t.ID, Attempt: t.Attempt}
+	if !protocol.ValidID(t.ID) { // refuse() already checked; never build a path from it otherwise
+		res.Outcome, res.Message = protocol.OutcomeRefused, "invalid task ID"
+		return res
+	}
 	dir := filepath.Join(a.tasksDir, t.ID)
 	state := filepath.Join(dir, "state")
 	checkpoint := filepath.Join(state, "checkpoint")
-	res := protocol.Result{TaskID: t.ID, Attempt: t.Attempt}
 	if err := os.MkdirAll(state, 0o700); err != nil {
 		res.Outcome, res.Message = protocol.OutcomeFailed, err.Error()
 		return res
@@ -100,6 +104,9 @@ func (v *volumes) index() string  { return filepath.Join(v.state, "index.json") 
 func (v *volumes) prepare(ctx context.Context) error {
 	b, _ := os.ReadFile(v.marker())
 	v.last = strings.TrimSpace(string(b))
+	if v.t.Restore != "" && !storage.ValidID(v.t.Restore) {
+		return errors.New("invalid snapshot ID from the node")
+	}
 	if v.t.Restore != "" && v.t.Restore != v.last {
 		v.a.log.Info("restoring app data from the pool", "task", v.t.ID, "snapshot", v.t.Restore[:12])
 		idx, err := storage.Restore(v.dir, v.t.Restore, v.t.DataKey, v.a.st.getter(ctx), true)
@@ -232,6 +239,13 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 			}
 		}
 		a.mu.Unlock()
+		if t.Spec.Build != nil {
+			img, err := a.buildImage(ctx, rt, t, out)
+			if err != nil {
+				return -1, err
+			}
+			t.Spec.Image = img
+		}
 		var sb *sandbox
 		if t.Spec.Sandboxed(a.cfg.Trust, a.cfg.OpenInternet) {
 			sb = sandboxFor(rt, t)

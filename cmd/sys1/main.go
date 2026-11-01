@@ -55,7 +55,8 @@ Usage:
         --no-auto-update      don't install new versions automatically
   sys1 update               install the latest version now
   sys1 open                 open the dashboard of a running node
-  sys1 join-code            print the join code for new machines
+  sys1 join-code            print the join code to share with other people
+        --mine                print the join code for your own machines
   sys1 install|uninstall    run the node as a background service (starts at boot)
   sys1 start|stop|restart|status
   sys1 --cluster            run as a member of a cluster of nodes (see docs/CLUSTER.md)
@@ -99,6 +100,7 @@ func main() {
 	stagingGB := fs.Int("staging-gb", 4, "disk the node may use to pass chunks between machines")
 	verbose := fs.Bool("v", false, "verbose logging")
 	noAutoUpdate := fs.Bool("no-auto-update", false, "don't install new versions automatically")
+	mine := fs.Bool("mine", false, "join-code: the code for your own machines")
 	var trustKeys multi
 	fs.Var(&trustKeys, "trust-key", "trusted package signing key")
 	fs.Usage = func() { fmt.Fprintf(os.Stderr, usage, paths.DataDir("sys1")) }
@@ -112,6 +114,10 @@ func main() {
 		}
 	}
 
+	// Containers and services need an absolute path, whatever was typed.
+	if abs, err := filepath.Abs(*dataDir); err == nil {
+		*dataDir = abs
+	}
 	log := cli.Logger(*dataDir, "sys1", *verbose)
 	cfg := node.Config{DataDir: *dataDir, ListenAddr: *listen, GUIAddr: *gui, PublicAddr: *public, TrustedKeys: append(trustKeys, readTrustedKeys(*dataDir)...),
 		Copies: *copies, StagingBytes: int64(*stagingGB) << 30, Cluster: *clusterMode, RaftAddr: *raftAddr}
@@ -175,7 +181,7 @@ func main() {
 		fmt.Println("Dashboard:", url)
 		setup.OpenURL(url)
 	case "join-code":
-		err = printJoinCode(cfg)
+		err = printJoinCode(cfg, *mine)
 	case "install":
 		err = svc.Install()
 		if err == nil {
@@ -216,7 +222,7 @@ func serve(ctx context.Context, cfg node.Config, log *slog.Logger, quiet, local 
 		url := n.GUIURL(guiAddr)
 		log.Info("node ready", "clients", n.JoinCode().Addr, "dashboard", "http://"+guiAddr)
 		if !quiet {
-			fmt.Printf("\n  sys1 node is running.\n\n  Dashboard:  %s\n  Join code:  %s\n\n  Press Ctrl+C to stop.\n\n", url, n.JoinCode())
+			fmt.Printf("\n  sys1 node is running.\n\n  Dashboard:  %s\n\n  Join code for your own machines:\n    %s\n  Join code to share with other people:\n    %s\n\n  Press Ctrl+C to stop.\n\n", url, n.OwnerJoinCode(), n.JoinCode())
 			setup.OpenURL(url)
 		}
 		if local {
@@ -232,7 +238,7 @@ func runLocalAgent(ctx context.Context, n *node.Node, dir string, log *slog.Logg
 	log = log.With("component", "local-client")
 	code := n.LocalJoinCode()
 	if n.Clustered() {
-		jc := n.JoinCode()
+		jc := n.OwnerJoinCode()
 		code = protocol.JoinCode{Addr: code.Addr, More: jc.Addrs(), Fingerprint: jc.Fingerprint, Token: jc.Token}
 	}
 	cfg, err := agent.LoadConfig(dir)
@@ -243,7 +249,7 @@ func runLocalAgent(ctx context.Context, n *node.Node, dir string, log *slog.Logg
 		host, _ := os.Hostname()
 		sampler := &resources.Sampler{DataDir: dir}
 		if n.Clustered() {
-			jc := n.JoinCode() // the join token arrives with the cluster's state
+			jc := n.OwnerJoinCode() // the token arrives with the cluster's state
 			code.Token, code.More = jc.Token, jc.Addrs()
 		}
 		cfg, err = agent.Register(ctx, code, host+" (node)", protocol.TrustOwner, sampler.Sample(true), version.Version)
@@ -293,8 +299,12 @@ func updateNow(u *update.Updater, svc *cli.Service) error {
 
 // printJoinCode reads the code a running node saved, without touching
 // the node's journal.
-func printJoinCode(cfg node.Config) error {
-	b, err := os.ReadFile(filepath.Join(cfg.DataDir, node.JoinCodeFile))
+func printJoinCode(cfg node.Config, mine bool) error {
+	file := node.JoinCodeFile
+	if mine {
+		file = node.OwnerJoinCodeFile
+	}
+	b, err := os.ReadFile(filepath.Join(cfg.DataDir, file))
 	if err != nil {
 		return errors.New("no join code yet: start the node first (run: sys1)")
 	}

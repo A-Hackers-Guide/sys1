@@ -1,0 +1,26 @@
+{
+  "name": "github-app",
+  "version": "1.0.0",
+  "title": "Deploy from GitHub",
+  "description": "Builds a public GitHub repository's Dockerfile on one of your machines and runs it. When the branch gets a new commit, the pool builds and deploys it again by itself. Files the app writes to /data move with it.",
+  "category": "Developer",
+  "icon": "🐙",
+  "author": "sys1",
+  "inputs": [
+    {"name": "REPO", "label": "Repository (owner/name or its GitHub link)", "example": "owner/name"},
+    {"name": "BRANCH", "label": "Branch to follow (empty: the default branch)", "optional": true},
+    {"name": "PORT", "label": "Port the app listens on (opened on the machine too)", "default": "8080"},
+    {"name": "DIR", "label": "Folder with the Dockerfile (empty: the top)", "optional": true},
+    {"name": "DOCKERFILE", "label": "Dockerfile name (empty: Dockerfile)", "optional": true}
+  ],
+  "run": {
+    "kind": "container",
+    "build": {"repo": "${REPO}", "branch": "${BRANCH}", "dir": "${DIR}", "dockerfile": "${DOCKERFILE}"},
+    "network": true,
+    "ports": ["${PORT}:${PORT}"],
+    "volumes": ["/data"],
+    "env": {"PORT": "${PORT}"},
+    "service": true,
+    "ownerOnly": true
+  }
+}

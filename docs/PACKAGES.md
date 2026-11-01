@@ -52,6 +52,7 @@ A package is one JSON file: a description for humans plus a spec for machines. A
 | `verify` | Batch jobs: run each piece on this many machines and accept output only when they agree ([details](BATCH.md#checking-results-on-several-machines)). |
 | `shmMB` | Shared memory for containers; desktops and browsers need around 1024. |
 | `egress` | Hosts the app may reach over HTTP(S) on machines lent by others, like `["api.example.com", "*.cdn.example.com"]`. Leave it out if the app needs no outbound internet; `["*"]` if it needs unrestricted internet (it then runs on lent machines only where the lender allows). |
+| `build` | Build the container image from a public GitHub repository instead of pulling `image`: `{"repo": "owner/name", "branch", "dir", "dockerfile"}`. Needs `ownerOnly`. The node follows the branch and redeploys new commits. See [GitHub](GITHUB.md). |
 
 ### Volumes
 
@@ -69,7 +70,7 @@ Native (`exec`) programs find their pooled volumes in `$SYS1_VOLUME_0`, `$SYS1_V
 ]
 ```
 
-`${NAME}` anywhere in `run.image`, `run.command` or `run.env` values is replaced with the value. `secret` inputs are masked in the dashboard. The spec is validated **after** substitution, so an input cannot smuggle options into the container runtime.
+`${NAME}` anywhere in `run.image`, `run.command`, `run.env` values, `run.ports` and `run.build` is replaced with the value. `secret` inputs are masked in the dashboard. An input without a `default` must be filled in unless it's `"optional": true`; `"example"` is shown as a hint and used to check the package. The spec is validated **after** substitution, so an input cannot smuggle options into the container runtime.
 
 ### Kinds
 

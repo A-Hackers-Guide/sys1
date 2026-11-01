@@ -94,6 +94,9 @@ func (s *agentStorage) apply(ctx context.Context, resp protocol.HeartbeatRespons
 	}
 	s.syncBackups(ctx, resp.Backups)
 	for _, job := range resp.Restores {
+		if !protocol.ValidID(job.ID) {
+			continue
+		}
 		s.mu.Lock()
 		started := s.restores[job.ID]
 		s.restores[job.ID] = true
@@ -318,6 +321,9 @@ func (s *agentStorage) syncBackups(ctx context.Context, jobs []protocol.BackupJo
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, job := range jobs {
+		if !protocol.ValidID(job.ID) {
+			continue
+		}
 		b := s.backups[job.ID]
 		if b == nil {
 			b = &backupState{seenRun: job.RunNow}

@@ -157,6 +157,60 @@ type TaskSpec struct {
 	Group *GroupSpec `json:"group,omitempty"`
 	// VM describes the virtual machine for kind "vm" (see docs/VMS.md).
 	VM *VMSpec `json:"vm,omitempty"`
+	// Build makes a container's image from a Git repository's Dockerfile
+	// on the machine that runs it (see docs/GITHUB.md).
+	Build *BuildSpec `json:"build,omitempty"`
+}
+
+// BuildSpec builds a container image from a public Git repository.
+type BuildSpec struct {
+	Repo       string `json:"repo"`                 // "owner/name" on GitHub
+	Branch     string `json:"branch,omitempty"`     // followed for new commits (default: the repository's default branch)
+	Commit     string `json:"commit,omitempty"`     // the commit to build, set by the node
+	Dir        string `json:"dir,omitempty"`        // folder holding the build context, default the top
+	Dockerfile string `json:"dockerfile,omitempty"` // path inside Dir, default "Dockerfile"
+}
+
+// idRe is every ID the node hands out (random hex) or tests use. IDs name
+// folders on the client, so nothing that could leave one is allowed.
+var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
+
+// ValidID reports whether id is safe to use as a task, backup or restore ID.
+func ValidID(id string) bool { return idRe.MatchString(id) }
+
+var (
+	repoRe   = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`)
+	branchRe = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,200}$`)
+	commitRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	relRe    = regexp.MustCompile(`^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`)
+)
+
+func (b *BuildSpec) validate() error {
+	if !repoRe.MatchString(b.Repo) || strings.Contains(b.Repo, "..") {
+		return fmt.Errorf("repository %q: use owner/name", b.Repo)
+	}
+	if b.Branch != "" && (!branchRe.MatchString(b.Branch) || strings.Contains(b.Branch, "..") || strings.HasPrefix(b.Branch, "-")) {
+		return fmt.Errorf("invalid branch %q", b.Branch)
+	}
+	if b.Commit != "" && !commitRe.MatchString(b.Commit) {
+		return errors.New("commit must be a full 40-character hash")
+	}
+	for _, p := range []string{b.Dir, b.Dockerfile} {
+		if p != "" && (!relRe.MatchString(p) || strings.Contains(p, "..")) {
+			return fmt.Errorf("invalid path %q in the repository", p)
+		}
+	}
+	return nil
+}
+
+// GitContext is what `docker build` fetches: the repository at the commit,
+// in the build folder.
+func (b *BuildSpec) GitContext() string {
+	ctx := "https://github.com/" + b.Repo + ".git#" + b.Commit
+	if b.Dir != "" {
+		ctx += ":" + b.Dir
+	}
+	return ctx
 }
 
 // VMSpec is a virtual machine run with QEMU. Its disk is a copy-on-write
@@ -192,9 +246,19 @@ var (
 // Validate rejects specs that are malformed or could smuggle options into
 // the container runtime's command line.
 func (s TaskSpec) Validate() error {
+	if s.Build != nil && s.Kind != KindContainer {
+		return errors.New("only containers can be built from a repository")
+	}
 	switch s.Kind {
 	case KindContainer:
-		if !imageRe.MatchString(s.Image) {
+		if s.Build != nil {
+			if err := s.Build.validate(); err != nil {
+				return err
+			}
+			if !s.OwnerOnly {
+				return errors.New("building from a repository runs its build steps, so it runs only on your own machines (ownerOnly)")
+			}
+		} else if !imageRe.MatchString(s.Image) {
 			return fmt.Errorf("invalid image %q", s.Image)
 		}
 	case KindExec:
@@ -328,6 +392,8 @@ type RegisterRequest struct {
 type RegisterResponse struct {
 	AgentID string `json:"agentId"`
 	Secret  string `json:"secret"`
+	// Trust is what the node granted, decided by the join code used.
+	Trust Trust `json:"trust,omitempty"`
 }
 
 // RunningTask identifies a task attempt the client is currently running.

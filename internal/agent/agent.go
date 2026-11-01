@@ -61,6 +61,9 @@ type taskRun struct {
 }
 
 func New(dataDir string, cfg Config, log *slog.Logger) (*Agent, error) {
+	if abs, err := filepath.Abs(dataDir); err == nil {
+		dataDir = abs // container volume paths must be absolute
+	}
 	a := &Agent{
 		cfg:      cfg,
 		dataDir:  dataDir,
@@ -210,6 +213,9 @@ func (a *Agent) apply(ctx context.Context, resp protocol.HeartbeatResponse) {
 // refuse is the client's own safety check. The node should never send
 // work a machine has not allowed, but the client does not take its word.
 func (a *Agent) refuse(t protocol.Task) string {
+	if !protocol.ValidID(t.ID) {
+		return "invalid task ID"
+	}
 	if err := t.Spec.Validate(); err != nil {
 		return "invalid task: " + err.Error()
 	}

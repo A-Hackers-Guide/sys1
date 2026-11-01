@@ -13,6 +13,7 @@
 
 const REPO = "A-Hackers-Guide/sys1";
 const PER_IP_PER_HOUR = 30;
+const NEW_ISSUES_PER_HOUR = 10; // per Cloudflare location
 
 const FRAME = /^[A-Za-z0-9_.*()\[\]{},\/-]+ \([A-Za-z0-9_.\/-]+\.(go|s):\d+\)$/;
 const SAFE = /^[A-Za-z0-9._+-]{1,32}$/;
@@ -24,8 +25,12 @@ const SCRUB = [
   [/\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g, "<ip>"],
   [/(?:[A-Za-z]:\\|\\\\)[^\s"':]+/g, "<path>"],
   [/(^|[\s"'=(])\/[^\s"':,)]+/g, "$1<path>"],
+  [/\b(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}\b/g, "<mac>"],
   [/\b[A-Za-z0-9+\/_=-]{24,}\b/g, "<redacted>"],
+  [/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:local|lan|home|internal|localdomain|localhost|arpa|box|corp|intranet|private|com|net|org|io|dev|app|me|de|uk|fr|nl|jp|cn|ru|br|in|au|ca|us|eu|tv|cloud|xyz)\b/gi, "<host>"],
   [/@/g, "(at)"], // no @mentions in issues
+  [/`/g, "'"], // can't close the code block it's shown in
+  [/\]\(/g, "] ("], // no markdown links
 ];
 
 export function scrub(s) {
@@ -41,7 +46,9 @@ export function clean(r) {
   if (typeof r.signature !== "string" || !/^[0-9a-f]{12}$/.test(r.signature)) return null;
   for (const k of ["version", "os", "arch"]) if (typeof r[k] !== "string" || !SAFE.test(r[k])) return null;
   if (!Array.isArray(r.frames) || r.frames.length > 32) return null;
-  for (const f of r.frames) if (typeof f !== "string" || f.length > 300 || !FRAME.test(f)) return null;
+  for (const f of r.frames) {
+    if (typeof f !== "string" || f.length > 300 || !FRAME.test(f) || f.includes("](") || f.includes("//")) return null;
+  }
   const versions = Array.isArray(r.versions) ? r.versions.filter((v) => typeof v === "string" && SAFE.test(v)).slice(0, 20) : [];
   const count = Number.isInteger(r.count) && r.count > 0 ? Math.min(r.count, 1e6) : 1;
   return {
@@ -49,6 +56,23 @@ export function clean(r) {
     message: scrub(typeof r.message === "string" ? r.message.slice(0, 2000) : ""),
     frames: r.frames, versions, count,
   };
+}
+
+// signature names the bug by the functions it crashed in, exactly as
+// sys1 computes it (internal/crash), so a sender can't pick its own.
+export async function signature(r) {
+  const names = [];
+  for (const f of r.frames) {
+    const name = f.split(" (")[0];
+    if (name.startsWith("runtime.") || name.startsWith("panic(")) continue;
+    names.push(name);
+    if (names.length === 6) break;
+  }
+  let text = r.app;
+  for (const n of names) text += "\n" + n;
+  if (!names.length) text += "\n" + r.message.replace(/\d+/g, "N");
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 12);
 }
 
 export function title(r) {
@@ -98,13 +122,13 @@ async function once(key, ttl) {
   return true;
 }
 
-async function underLimit(ip) {
+async function underLimit(ip, max = PER_IP_PER_HOUR) {
   const hour = Math.floor(Date.now() / 3600e3);
   const cache = caches.default;
   const key = new Request(`https://intake.invalid/rate/${encodeURIComponent(ip)}/${hour}`);
   const hit = await cache.match(key);
   const n = hit ? parseInt(await hit.text(), 10) || 0 : 0;
-  if (n >= PER_IP_PER_HOUR) return false;
+  if (n >= max) return false;
   await cache.put(key, new Response(String(n + 1), { headers: { "Cache-Control": "max-age=3600" } }));
   return true;
 }
@@ -122,6 +146,7 @@ export default {
     let r;
     try { r = clean(JSON.parse(text)); } catch { r = null; }
     if (!r) return json({ error: "not a crash report" }, 400);
+    r.signature = await signature(r);
 
     const q = encodeURIComponent(`repo:${REPO} is:issue in:title "crash ${r.signature}"`);
     const found = await gh(env, "GET", `/search/issues?q=${q}&per_page=1`);
@@ -136,6 +161,7 @@ export default {
     }
     // Two nodes reporting the same new crash at once: only one files it.
     if (!(await once(`new/${r.signature}`, 600))) return json({ issue: "" }, 202);
+    if (!(await underLimit("new-issues", NEW_ISSUES_PER_HOUR))) return json({ error: "too many new crashes; try later" }, 429);
     const issue = await gh(env, "POST", `/repos/${REPO}/issues`, { title: title(r), body: body(r), labels: ["crash"] });
     return json({ issue: issue.html_url }, 201);
   },

@@ -5,8 +5,7 @@
 set -e
 OS=$1
 KEY=$(cat node/dashboard.key)
-curl -s -c jar -o /dev/null "http://127.0.0.1:7700/?key=$KEY"
-curl -s -b jar http://127.0.0.1:7700/api/state > state.json
+curl -s -H "Authorization: Bearer $KEY" http://127.0.0.1:7700/api/state > state.json
 OS=$OS python3 - <<'PY'
 import json, os, sys
 want = os.environ["OS"]

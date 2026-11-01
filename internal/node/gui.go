@@ -20,7 +20,10 @@ import (
 //go:embed web
 var webFS embed.FS
 
-const keyCookie = "sys1key"
+// oldKeyCookie is how releases before v0.8 kept the key. A cookie for
+// 127.0.0.1 is sent to every port on it, apps on the pool included, so the
+// key now lives in the dashboard page's own storage and travels in a header.
+const oldKeyCookie = "sys1key"
 
 // loadGUIKey keeps the dashboard key across restarts so a bookmarked
 // dashboard link keeps working.
@@ -39,8 +42,9 @@ func GUIKey(dataDir string) string { return loadGUIKey(dataDir) }
 
 // guiHandler serves the dashboard. It defends against other websites and
 // other local users: requests must name a loopback host (stopping DNS
-// rebinding), carry the key cookie, and for changes, a custom header no
-// cross-site form can set.
+// rebinding) and carry the key in an Authorization header, which no other
+// website can set (there is no CORS) and no other port on this machine is
+// ever sent, unlike a cookie.
 func (n *Node) guiHandler(addr string) http.Handler {
 	_, port, _ := net.SplitHostPort(addr)
 	allowedHosts := map[string]bool{addr: true, "localhost:" + port: true, "127.0.0.1:" + port: true, "[::1]:" + port: true}
@@ -49,13 +53,12 @@ func (n *Node) guiHandler(addr string) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if key := r.URL.Query().Get("key"); key != "" {
-			if subtle.ConstantTimeCompare([]byte(key), []byte(n.guiKey)) == 1 {
-				http.SetCookie(w, &http.Cookie{Name: keyCookie, Value: key, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: 400 * 24 * 3600})
-			}
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
+		if _, err := r.Cookie(oldKeyCookie); err == nil {
+			http.SetCookie(w, &http.Cookie{Name: oldKeyCookie, Value: "", Path: "/", MaxAge: -1})
 		}
+		// The page takes ?key= into its own storage and drops it from the
+		// address bar; the files themselves are no secret.
+		w.Header().Set("Referrer-Policy", "no-referrer")
 		files.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("GET /api/state", n.guiAuth(n.handleState))
@@ -177,8 +180,8 @@ func (n *Node) guiHandler(addr string) http.Handler {
 
 func (n *Node) guiAuth(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		c, err := r.Cookie(keyCookie)
-		if err != nil || subtle.ConstantTimeCompare([]byte(c.Value), []byte(n.guiKey)) != 1 {
+		key, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if !ok || subtle.ConstantTimeCompare([]byte(key), []byte(n.guiKey)) != 1 {
 			http.Error(w, "locked", http.StatusUnauthorized)
 			return
 		}
@@ -254,7 +257,7 @@ type totals struct {
 }
 
 func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
-	code := n.JoinCode()
+	code, ownerCode := n.JoinCode(), n.OwnerJoinCode()
 	internet := n.InternetStatus()
 	clusterStatus := n.ClusterStatus()
 	now := time.Now()
@@ -263,6 +266,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 	var out struct {
 		Version     string         `json:"version"`
 		JoinCode    string         `json:"joinCode"`
+		OwnerCode   string         `json:"ownerJoinCode"`
 		PublicAddr  string         `json:"publicAddr"`
 		Fingerprint string         `json:"fingerprint"`
 		Uptime      float64        `json:"uptime"`
@@ -275,6 +279,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 		Cluster     ClusterStatus  `json:"cluster"`
 	}
 	out.Version, out.JoinCode, out.PublicAddr, out.Fingerprint = version.Version, code.String(), code.Addr, n.fp
+	out.OwnerCode = ownerCode.String()
 	out.Uptime = now.Sub(n.started).Seconds()
 	out.Addrs, out.Internet, out.Cluster = code.Addrs(), internet, clusterStatus
 	load := map[string]int{}

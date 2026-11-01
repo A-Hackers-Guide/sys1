@@ -179,5 +179,8 @@ func Register(ctx context.Context, code protocol.JoinCode, name string, trust pr
 			addrs = append(addrs, x)
 		}
 	}
+	if out.Trust.Valid() {
+		trust = out.Trust // the node decides from the join code
+	}
 	return Config{NodeAddr: reached, NodeAddrs: addrs, Fingerprint: code.Fingerprint, AgentID: out.AgentID, Secret: out.Secret, Name: name, Trust: trust, MaxTasks: 4, StorageGB: DefaultStorageGB}, nil
 }

@@ -4,6 +4,18 @@
 
 const $ = (sel) => document.querySelector(sel);
 
+// The dashboard key arrives once as ?key= (from `sys1 open`), is kept in
+// this page's own storage (which, unlike a cookie, no other port on this
+// machine can read) and is sent as a header.
+const KEY = (() => {
+  const fromURL = new URLSearchParams(location.search).get("key");
+  if (fromURL) history.replaceState(null, "", location.pathname);
+  try {
+    if (fromURL) localStorage.setItem("sys1.key", fromURL);
+    return fromURL || localStorage.getItem("sys1.key") || "";
+  } catch { return fromURL || ""; }
+})();
+
 // h builds DOM nodes. Text is always set as text, never parsed as HTML,
 // so names and messages from other machines cannot inject markup.
 function h(tag, props, ...kids) {
@@ -58,8 +70,8 @@ function toast(msg) {
 }
 
 async function api(path, body) {
-  const opts = body === undefined ? {} : {
-    method: "POST", headers: { "Content-Type": "application/json", "X-Sys1": "1" }, body: JSON.stringify(body),
+  const opts = body === undefined ? { headers: { Authorization: "Bearer " + KEY } } : {
+    method: "POST", headers: { Authorization: "Bearer " + KEY, "Content-Type": "application/json", "X-Sys1": "1" }, body: JSON.stringify(body),
   };
   const r = await fetch(path, opts);
   if (r.status === 401) {
@@ -282,6 +294,8 @@ function renderAdd(s) {
   renderNodes(s);
   const input = $("#joincode");
   if (input.value !== s.joinCode) input.value = s.joinCode;
+  const own = $("#ownercode");
+  if (own.value !== s.ownerJoinCode) own.value = s.ownerJoinCode;
   fill($("#addrs"), (s.addrs || []).map((a) => h("li", {}, a)));
   const net = s.internet || {};
   const box = $("#internet");
@@ -293,7 +307,7 @@ function renderAdd(s) {
     net.working && !net.cgnat ? `On: your router (${net.method}) forwards the port. The public address is in the join code.` :
     net.problem || "Working on it…";
   $("#fp").textContent = s.fingerprint.match(/.{1,4}/g).join(" ");
-  $("#cli").textContent = `sys0 join ${s.joinCode}`;
+  $("#cli").textContent = `sys0 join ${s.ownerJoinCode}`;
 }
 
 function renderMarket() {
@@ -320,7 +334,7 @@ function openDeploy(p) {
   $("#deploy-desc").textContent = p.description;
   fill($("#deploy-perms"), p.permissions.map((x) => h("li", {}, x)));
   fill($("#deploy-inputs"), (p.inputs || []).map((i) => h("label", { class: "field" }, i.label,
-    h("input", { name: i.name, value: i.default || "", type: i.secret ? "password" : "text", autocomplete: "off", required: !i.default }))));
+    h("input", { name: i.name, value: i.default || "", placeholder: i.example || null, type: i.secret ? "password" : "text", autocomplete: "off", required: !i.default && !i.optional }))));
   $("#deploy-error").textContent = "";
   const dlg = $("#deploy");
   dlg.dataset.pkg = p.name;
@@ -357,12 +371,14 @@ $("#internet").addEventListener("change", async (e) => {
   catch (err) { toast(err.message); e.target.checked = !e.target.checked; }
 });
 
-$("#copy").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText($("#joincode").value); toast("Join code copied"); }
-  catch { $("#joincode").select(); toast("Press Ctrl+C / ⌘C to copy"); }
-});
+for (const [btn, field] of [["#copy", "#joincode"], ["#copy-owner", "#ownercode"]]) {
+  $(btn).addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($(field).value); toast("Join code copied"); }
+    catch { $(field).select(); toast("Press Ctrl+C / ⌘C to copy"); }
+  });
+}
 $("#rotate").addEventListener("click", async () => {
-  if (!confirm("Make a new join code? The current one stops working for new machines.")) return;
+  if (!confirm("Make new join codes? The current ones stop working for new machines.")) return;
   try { await api("/api/joincode/rotate", {}); toast("New join code ready"); refresh(); } catch (e) { toast(e.message); }
 });
 

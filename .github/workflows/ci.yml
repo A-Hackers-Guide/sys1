@@ -78,6 +78,8 @@ jobs:
         run: |
           docker tag sys1:test sys1-gateway:test
           SYS1_DOCKER_TESTS=1 SYS1_GATEWAY_IMAGE=sys1-gateway:test go test -count=1 -v -run 'TestSandbox' ./internal/agent
+      - name: Build an app from GitHub, against real Docker
+        run: SYS1_DOCKER_TESTS=1 SYS1_BUILD_COMMIT=${{ github.sha }} go test -count=1 -v -run 'TestBuildFromGitHub' ./internal/agent
       - name: Run it and check the node answers
         run: |
           docker run -d --name sys1 -p 7443:7443 -p 127.0.0.1:7700:7700 sys1:test

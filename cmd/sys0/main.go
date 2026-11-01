@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -99,6 +100,10 @@ func main() {
 		}
 	}
 
+	// Containers and services need an absolute path, whatever was typed.
+	if abs, err := filepath.Abs(*dataDir); err == nil {
+		*dataDir = abs
+	}
 	log := cli.Logger(*dataDir, "sys0", *verbose)
 	svc := &cli.Service{
 		Name:        "sys0",

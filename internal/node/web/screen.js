@@ -8,7 +8,9 @@ const status = (text) => ($("#status").textContent = text);
 
 async function main() {
   const id = new URLSearchParams(location.search).get("task");
-  const r = await fetch("/api/state");
+  let key = "";
+  try { key = localStorage.getItem("sys1.key") || ""; } catch {}
+  const r = await fetch("/api/state", { headers: { Authorization: "Bearer " + key } });
   if (r.status === 401) { $("#title").textContent = "This dashboard is locked"; return; }
   const state = await r.json();
   const t = (state.tasks || []).find((x) => x.id === id);

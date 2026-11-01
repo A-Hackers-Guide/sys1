@@ -133,7 +133,7 @@ func startNode(t *testing.T) (*Node, context.Context) {
 
 func joinAgent(t *testing.T, ctx context.Context, n *Node, name string) (agentID string, stop func()) {
 	t.Helper()
-	code := n.JoinCode()
+	code := n.OwnerJoinCode()
 	code.Addr = n.LocalJoinCode().Addr
 	res := protocol.Resources{OS: "test", CPUCores: 4, CPUIdlePercent: 90, MemFree: 8 << 30, MemTotal: 16 << 30, Runtimes: []string{"exec"}, Addr: "127.0.0.1"}
 	cfg, err := agent.Register(ctx, code, name, protocol.TrustOwner, res, "test")
@@ -722,5 +722,39 @@ func TestScreenPageMayConnectToMachines(t *testing.T) {
 	}
 	if strings.Contains(csp("/"), "ws:") {
 		t.Fatal("the dashboard itself shouldn't allow WebSockets elsewhere")
+	}
+}
+
+// TestTrustComesFromTheCode: a machine can't make itself the owner's by
+// asking; only the owner code (or the node's own client) grants it.
+func TestTrustComesFromTheCode(t *testing.T) {
+	n, ctx := startNode(t)
+	local := n.LocalJoinCode().Addr
+	for _, c := range []struct {
+		code protocol.JoinCode
+		ask  protocol.Trust
+		want protocol.Trust
+	}{
+		{n.JoinCode(), protocol.TrustOwner, protocol.TrustCommunity},
+		{n.JoinCode(), protocol.TrustCommunity, protocol.TrustCommunity},
+		{n.OwnerJoinCode(), protocol.TrustOwner, protocol.TrustOwner},
+		{n.OwnerJoinCode(), protocol.TrustCommunity, protocol.TrustCommunity},
+	} {
+		c.code.Addr, c.code.More = local, nil
+		cfg, err := agent.Register(ctx, c.code, "m", c.ask, protocol.Resources{OS: "test"}, "test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		n.mu.Lock()
+		got := n.agents[cfg.AgentID].Trust
+		n.mu.Unlock()
+		if got != c.want || cfg.Trust != c.want {
+			t.Errorf("token %s… asking %s: node trusts it as %s, client saved %s", c.code.Token[:6], c.ask, got, cfg.Trust)
+		}
+	}
+	old := n.OwnerJoinCode().Token
+	n.RotateJoinCode()
+	if n.OwnerJoinCode().Token == old {
+		t.Fatal("the owner code didn't change")
 	}
 }
