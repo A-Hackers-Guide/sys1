@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestDashboardAuth: the key works only as a header, never as a cookie
@@ -50,5 +51,28 @@ func TestDashboardAuth(t *testing.T) {
 	}
 	if do("GET", "/api/state", func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+old) }) != 401 {
 		t.Fatal("the old key still works")
+	}
+}
+
+func TestMetrics(t *testing.T) {
+	n, ctx := startNode(t)
+	joinAgent(t, ctx, n, "box")
+	h := n.guiHandler("127.0.0.1:7700")
+	waitFor(t, n, 10*time.Second, "the machine", func() bool { return len(n.agents) == 1 })
+	r := httptest.NewRequest("GET", "http://127.0.0.1:7700/metrics", nil)
+	r.Header.Set("Authorization", "Bearer "+n.dashKey())
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	body := w.Body.String()
+	for _, want := range []string{"sys1_build_info{", `sys1_machine_online{machine="box"`, "sys1_machine_cpu_cores{", `sys1_apps{state="running"} 0`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("metrics lack %q:\n%s", want, body)
+		}
+	}
+	r = httptest.NewRequest("GET", "http://127.0.0.1:7700/metrics", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 401 {
+		t.Fatalf("metrics without the key: %d", w.Code)
 	}
 }

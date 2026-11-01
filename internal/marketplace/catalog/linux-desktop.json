@@ -21,6 +21,7 @@
     "memoryMB": 4096,
     "shmMB": 1024,
     "service": true,
+    "health": {"port": 3000, "grace": 120},
     "ownerOnly": true,
     "egress": ["*"]
   }

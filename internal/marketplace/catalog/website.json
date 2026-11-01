@@ -7,5 +7,6 @@
   "icon": "🌐",
   "author": "sys1",
   "homepage": "https://nginx.org",
-  "run": {"kind": "container", "image": "nginx:alpine", "network": true, "ports": ["8080:80"], "volumes": ["/usr/share/nginx/html"], "cpu": 0.5, "memoryMB": 128, "service": true}
+  "run": {"kind": "container", "image": "nginx:alpine", "network": true, "ports": ["8080:80"], "volumes": ["/usr/share/nginx/html"], "cpu": 0.5, "memoryMB": 128, "service": true,
+    "health": {"http": "/", "port": 8080}}
 }

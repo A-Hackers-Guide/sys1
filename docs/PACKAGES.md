@@ -53,6 +53,7 @@ A package is one JSON file: a description for humans plus a spec for machines. A
 | `shmMB` | Shared memory for containers; desktops and browsers need around 1024. |
 | `egress` | Hosts the app may reach over HTTP(S) on machines lent by others, like `["api.example.com", "*.cdn.example.com"]`. Leave it out if the app needs no outbound internet; `["*"]` if it needs unrestricted internet (it then runs on lent machines only where the lender allows). |
 | `build` | Build the container image from a public GitHub repository instead of pulling `image`: `{"repo": "owner/name", "branch", "dir", "dockerfile"}`. Needs `ownerOnly`. The node follows the branch and redeploys new commits. See [GitHub](GITHUB.md). |
+| `health` | Services only: `{"http": "/health", "port": 8096}` (or just `port` for a TCP check), optional `every`, `timeout`, `failures` (default 3), `grace` (seconds before the first check, default 60). An app that misses `failures` checks in a row is restarted like a crashed one and moved to another machine after repeated failures. Skipped where the app runs sandboxed. |
 
 ### Volumes
 

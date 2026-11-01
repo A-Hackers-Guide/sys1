@@ -20,6 +20,7 @@
     "memoryMB": 8192,
     "gpu": true,
     "service": true,
+    "health": {"http": "/", "port": 11434},
     "egress": [
       "*"
     ]

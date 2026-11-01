@@ -2,9 +2,9 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
-## [0.8.1] - 2026-11-01
+## [0.9.0] - 2026-11-01
 
-Found on real machines: Docker that was installed but not seen, and installs that never updated.
+Real machines, datacenter basics: Docker that was installed but not seen, installs that never updated, container engines and apps kept running, metrics.
 
 ### Fixed
 
@@ -16,6 +16,8 @@ Found on real machines: Docker that was installed but not seen, and installs tha
 ### Added
 
 - **Container engines are supervised like apps.** On your own machines, sys0 and sys1 start the installed engine when they start (so at boot), start it again if it stops or crashes, back off after 5 failed starts in a row (then try every 30 minutes) and say so on the dashboard. Docker Desktop, OrbStack, Rancher Desktop, Colima and Podman machines on macOS; Docker Desktop, Rancher Desktop and Podman on Windows (started in the signed-in person's session); the Docker system service, snap or rootless Docker on Linux. `sys0 keep-engines-running on|off`; lent machines are off unless their owner turns it on.
+- **Prometheus metrics** at `/metrics` on the node (machines, apps, crashes, updates). docs/MONITORING.md.
+- **Health checks**: services can declare an HTTP or TCP check; an app that stops answering is restarted like a crashed one, and moved after repeated failures. The built-in services have them.
 - Each machine card says **why** an app kind can't run there ("Docker is installed but not running. Open Docker Desktop and turn on 'Start when you sign in'", "sys0 isn't allowed to use it", …) and whether the machine **updates itself**, or why not.
 - `sys0 doctor`: what this machine can run, what's in the way, and whether it updates itself, as the background service sees it.
 - **Update all machines now** on the Machines tab: every machine and the node check for a new version within seconds instead of waiting for their daily check.

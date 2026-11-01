@@ -115,6 +115,7 @@ func (n *Node) guiHandler(addr string) http.Handler {
 	}))
 	mux.HandleFunc("GET /api/storage", n.guiAuth(n.handleStorage))
 	mux.HandleFunc("GET /api/crashes", n.guiAuth(n.handleCrashes))
+	mux.HandleFunc("GET /metrics", n.guiAuth(n.handleMetrics))
 	mux.HandleFunc("POST /api/update-all", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		n.UpdateAll()
 		writeJSON(w, struct{}{})

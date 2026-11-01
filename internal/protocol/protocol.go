@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -162,9 +163,47 @@ type TaskSpec struct {
 	Group *GroupSpec `json:"group,omitempty"`
 	// VM describes the virtual machine for kind "vm" (see docs/VMS.md).
 	VM *VMSpec `json:"vm,omitempty"`
+	// Health restarts the app when it stops answering, not only when it
+	// exits (services only).
+	Health *HealthCheck `json:"health,omitempty"`
 	// Build makes a container's image from a Git repository's Dockerfile
 	// on the machine that runs it (see docs/GITHUB.md).
 	Build *BuildSpec `json:"build,omitempty"`
+}
+
+// HealthCheck asks a service whether it's well. After Failures misses in a
+// row it is restarted like a crashed app (and moved after 5 crashes).
+type HealthCheck struct {
+	HTTP     string `json:"http,omitempty"`     // path asked on Port, e.g. "/health"; any 2xx/3xx is healthy
+	Port     int    `json:"port"`               // a host port the app publishes ("8096:8096" → 8096)
+	Every    int    `json:"every,omitempty"`    // seconds between checks (default 30)
+	Timeout  int    `json:"timeout,omitempty"`  // seconds (default 5)
+	Failures int    `json:"failures,omitempty"` // misses in a row before a restart (default 3)
+	Grace    int    `json:"grace,omitempty"`    // seconds after start before checking (default 60)
+}
+
+func (h *HealthCheck) validate(s TaskSpec) error {
+	if !s.Service {
+		return errors.New("health checks are for services")
+	}
+	if h.Port < 1 || h.Port > 65535 {
+		return errors.New("health check needs a port")
+	}
+	published := false
+	for _, p := range s.Ports {
+		host, _, _ := strings.Cut(p, ":")
+		published = published || host == strconv.Itoa(h.Port)
+	}
+	if !published && s.Kind != KindExec {
+		return fmt.Errorf("health check port %d isn't one of the app's ports", h.Port)
+	}
+	if h.HTTP != "" && (!strings.HasPrefix(h.HTTP, "/") || strings.ContainsAny(h.HTTP, " \n\r")) {
+		return errors.New("health check path must start with /")
+	}
+	if h.Every < 0 || h.Every > 3600 || h.Timeout < 0 || h.Timeout > 120 || h.Failures < 0 || h.Failures > 100 || h.Grace < 0 || h.Grace > 3600 {
+		return errors.New("health check numbers out of range")
+	}
+	return nil
 }
 
 // BuildSpec builds a container image from a public Git repository.
@@ -253,6 +292,11 @@ var (
 func (s TaskSpec) Validate() error {
 	if s.Build != nil && s.Kind != KindContainer {
 		return errors.New("only containers can be built from a repository")
+	}
+	if s.Health != nil {
+		if err := s.Health.validate(s); err != nil {
+			return err
+		}
 	}
 	switch s.Kind {
 	case KindContainer:

@@ -20,6 +20,7 @@
     "localVolumes": ["/root/.cache/llama.cpp"],
     "memoryMB": 4096,
     "service": true,
+    "health": {"http": "/health", "port": 8080, "grace": 1800, "failures": 5},
     "ownerOnly": true,
     "group": {
       "workers": 2,

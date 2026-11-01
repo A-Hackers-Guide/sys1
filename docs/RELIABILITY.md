@@ -89,3 +89,7 @@ Most apps need a container engine, so sys0 keeps it running the same way it keep
 - Desktop apps such as Docker Desktop only run in someone's session: sys0 starts them for whoever is signed in at the screen. With nobody signed in, the card says so.
 
 `sys0 doctor` shows the engines sys0 found and whether it keeps them running.
+
+## Health checks
+
+A crash is easy to see; a hang isn't. Services can declare a health check (an HTTP path or a TCP port). sys0 asks every 30 seconds, and after 3 misses in a row it stops the app and treats it as a crash: the watchdog restarts it, and after 5 crashes in a row the pool moves it to another machine with its saved data. The built-in Jellyfin, Plex, Audiobookshelf, Syncthing, Ollama, website, desktop and AI packages have one.

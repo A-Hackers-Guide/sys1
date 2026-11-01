@@ -22,6 +22,7 @@
     ],
     "memoryMB": 256,
     "service": true,
+    "health": {"http": "/rest/noauth/health", "port": 8384},
     "egress": [
       "*"
     ]

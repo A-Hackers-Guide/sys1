@@ -90,7 +90,13 @@ Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cy
 - ✅ Deploy from a GitHub repository, redeployed on every commit (#20, public repositories)
 - ✅ A security review of the whole project, with every finding fixed; two join codes; an upgrade test from every earlier release
 
-## 📦 v0.9: Package repositories
+## ✅ v0.9: Real machines (done)
+
+- ✅ Container engines found from background services, started at boot and restarted on crashes
+- ✅ Every install updates itself, package managers included; **Update all machines now**
+- ✅ Health checks restart hung apps; Prometheus metrics; plain-words problems on every machine card; `sys0 doctor`
+
+## 📦 v0.10: Package repositories
 
 - F-Droid
 - Signed apt and dnf repositories on GitHub Pages (#6, needs the project's signing key)
@@ -115,7 +121,7 @@ Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cy
 
 ## 📈 v1.3: Observability
 
-- Prometheus metrics, OpenTelemetry, per-machine history and alerts
+- OpenTelemetry, per-machine history and alerts on the dashboard (Prometheus metrics shipped in v0.9)
 
 ## 🎮 v1.4: GPUs
 

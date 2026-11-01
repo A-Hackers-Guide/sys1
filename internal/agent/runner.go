@@ -295,9 +295,33 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
+	hctx, hcancel := context.WithCancel(ctx)
+	defer hcancel()
+	var sickWhy string
+	var sick <-chan struct{}
+	// Checks reach the app through its published port, which sandboxed
+	// apps (on lent machines) and apps without a network don't have.
+	reachable := t.Spec.Kind == protocol.KindExec ||
+		(t.Spec.Network && !t.Spec.Sandboxed(a.cfg.Trust, a.cfg.OpenInternet))
+	if t.Spec.Service && reachable {
+		sick = watchHealth(hctx, t.Spec.Health, &sickWhy)
+	}
 	select {
 	case err := <-done:
 		return exitCode(err), err
+	case <-sick:
+		// Hung, not crashed: stop it and report a crash, so the watchdog
+		// restarts it (and the pool moves it after repeated failures).
+		fmt.Fprintln(out, "sys1:", sickWhy)
+		a.log.Warn("app unhealthy", "task", t.ID, "why", sickWhy)
+		stop()
+		select {
+		case <-done:
+		case <-time.After(grace):
+			cmd.Process.Kill()
+			<-done
+		}
+		return -1, errors.New(sickWhy)
 	case <-ctx.Done():
 		stop()
 		select {
