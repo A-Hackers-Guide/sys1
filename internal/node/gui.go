@@ -113,6 +113,19 @@ func (n *Node) guiHandler(addr string) http.Handler {
 		}
 		writeJSON(w, map[string]string{"code": code})
 	}))
+	mux.HandleFunc("POST /api/cluster/prefer", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Node string `json:"node"`
+		}
+		if !readJSON(w, r, 4096, &req) {
+			return
+		}
+		if err := n.Prefer(req.Node); err != nil {
+			replyErr(w, err)
+			return
+		}
+		writeJSON(w, struct{}{})
+	}))
 	mux.HandleFunc("GET /api/storage", n.guiAuth(n.handleStorage))
 	mux.HandleFunc("GET /api/crashes", n.guiAuth(n.handleCrashes))
 	mux.HandleFunc("GET /metrics", n.guiAuth(n.handleMetrics))

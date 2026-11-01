@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -31,6 +32,17 @@ import (
 // exactly where the old one stopped. Clients know every node's address and
 // move to whichever is leading. See docs/CLUSTER.md.
 //
+// A witness is a member that only votes: it keeps a copy of the state, as
+// every Raft member must, but hands leadership to a full node whenever it
+// gets it, and clients never use it. A node, a standby and a witness on any
+// third machine survive losing any one of them; two nodes alone can't,
+// because neither can tell a dead partner from a broken link.
+//
+// One node can be preferred (by default the one the cluster started on).
+// While another node leads, it hands leadership back once the preferred
+// node has been answering steadily, so the pool returns to its main
+// computer after an outage.
+//
 // All nodes share one identity: the cluster's TLS certificate (so the
 // fingerprint in join codes covers every node) and its pool key. A new node
 // receives both over the pinned, encrypted connection when it joins.
@@ -41,6 +53,7 @@ type Member struct {
 	Name     string   `json:"name"`
 	RaftAddr string   `json:"raftAddr"`
 	APIAddrs []string `json:"apiAddrs"`
+	Witness  bool     `json:"witness,omitempty"`
 }
 
 type cluster struct {
@@ -51,7 +64,15 @@ type cluster struct {
 	active  atomic.Bool // leader, and caught up: may change state
 	members map[string]Member
 	token   string
+	prefer  string // member ID that should lead when it can
+	witness bool   // this node only votes
 	store   *raftStore
+
+	// leaderSince and peerFailed (by member ID, the last failed heartbeat)
+	// tell failback whether the preferred node is steadily reachable.
+	leaderSince atomic.Int64
+	peerMu      sync.Mutex
+	peerFailed  map[string]time.Time
 }
 
 // entry wraps an event in the Raft log.
@@ -63,6 +84,7 @@ type entry struct {
 	Member *Member         `json:"m,omitempty"`
 	Leave  string          `json:"l,omitempty"`
 	Token  string          `json:"t,omitempty"` // cluster join token
+	Prefer string          `json:"p,omitempty"` // member ID to lead when it can
 }
 
 // ErrStandby is returned for changes asked of a node that isn't leading.
@@ -115,7 +137,10 @@ func (n *Node) startCluster(ctx context.Context, bootstrap bool) error {
 	}
 	b := make([]byte, 8)
 	rand.Read(b)
-	c := &cluster{id: nodeID(cfg.DataDir), epoch: hex.EncodeToString(b), members: map[string]Member{}, store: store}
+	c := &cluster{id: nodeID(cfg.DataDir), epoch: hex.EncodeToString(b), members: map[string]Member{}, store: store, peerFailed: map[string]time.Time{}}
+	if st, err := readJoinState(cfg.DataDir); err == nil {
+		c.witness = st.Witness
+	}
 	rc := raft.DefaultConfig()
 	rc.LocalID = raft.ServerID(c.id)
 	rc.LogOutput = io.Discard
@@ -144,7 +169,17 @@ func (n *Node) startCluster(ctx context.Context, bootstrap bool) error {
 	n.mu.Lock()
 	n.raftAddr = string(trans.LocalAddr())
 	n.mu.Unlock()
+	obs := make(chan raft.Observation, 64)
+	r.RegisterObserver(raft.NewObserver(obs, false, func(o *raft.Observation) bool {
+		switch o.Data.(type) {
+		case raft.FailedHeartbeatObservation, raft.ResumedHeartbeatObservation:
+			return true
+		}
+		return false
+	}))
+	go n.watchPeers(ctx, obs)
 	go n.watchLeadership(ctx)
+	go n.failback(ctx)
 	if !bootstrap {
 		go n.requestMembership(ctx)
 	}
@@ -164,7 +199,12 @@ func (n *Node) watchLeadership(ctx context.Context) {
 		case lead := <-ch:
 			if !lead {
 				c.active.Store(false)
+				c.leaderSince.Store(0)
 				n.log.Info("cluster: now a standby")
+				continue
+			}
+			if c.witness {
+				go n.handOff(ctx)
 				continue
 			}
 			if err := c.r.Barrier(30 * time.Second).Error(); err != nil {
@@ -179,10 +219,12 @@ func (n *Node) watchLeadership(ctx context.Context) {
 				a.LastSeen = time.Now()
 			}
 			c.active.Store(true)
+			c.leaderSince.Store(time.Now().UnixNano())
 			if n.pendingSeed {
 				n.pendingSeed = false
 				recs := n.recordsLocked()
 				n.proposeLocked(entry{Reset: recs})
+				n.proposeLocked(entry{Prefer: c.id})
 			}
 			if c.token == "" {
 				n.proposeLocked(entry{Token: randomToken()})
@@ -215,6 +257,8 @@ func (n *Node) proposeLocked(e entry) {
 		delete(c.members, e.Leave)
 	case e.Token != "":
 		c.token = e.Token
+	case e.Prefer != "":
+		c.prefer = e.Prefer
 	}
 	b, _ := json.Marshal(e)
 	if err := c.r.Apply(b, 10*time.Second).Error(); err != nil {
@@ -248,6 +292,8 @@ func (f *fsm) Apply(l *raft.Log) interface{} {
 		delete(c.members, e.Leave)
 	case e.Token != "":
 		c.token = e.Token
+	case e.Prefer != "":
+		c.prefer = e.Prefer
 	}
 	return nil
 }
@@ -265,9 +311,9 @@ func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
 			for _, m := range c.members {
 				members = append(members, m)
 			}
-			token := c.token
+			token, prefer := c.token, c.prefer
 			n.mu.Unlock()
-			b, _ := json.Marshal(snapshotDoc{Records: recs, Members: members, Token: token})
+			b, _ := json.Marshal(snapshotDoc{Records: recs, Members: members, Token: token, Prefer: prefer})
 			return snapshotBytes(b), nil
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -279,6 +325,7 @@ type snapshotDoc struct {
 	Records [][]byte `json:"records"`
 	Members []Member `json:"members"`
 	Token   string   `json:"token"`
+	Prefer  string   `json:"prefer,omitempty"`
 }
 
 type snapshotBytes []byte
@@ -307,7 +354,7 @@ func (f *fsm) Restore(rc io.ReadCloser) error {
 	for _, m := range doc.Members {
 		n.cl.members[m.ID] = m
 	}
-	n.cl.token = doc.Token
+	n.cl.token, n.cl.prefer = doc.Token, doc.Prefer
 	return nil
 }
 
@@ -362,6 +409,7 @@ type joinRequest struct {
 	Name     string   `json:"name"`
 	RaftAddr string   `json:"raftAddr"`
 	APIAddrs []string `json:"apiAddrs"`
+	Witness  bool     `json:"witness,omitempty"`
 }
 
 type joinResponse struct {
@@ -401,7 +449,7 @@ func (n *Node) handleClusterAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n.mu.Lock()
-	n.proposeLocked(entry{Member: &Member{ID: req.ID, Name: req.Name, RaftAddr: req.RaftAddr, APIAddrs: req.APIAddrs}})
+	n.proposeLocked(entry{Member: &Member{ID: req.ID, Name: req.Name, RaftAddr: req.RaftAddr, APIAddrs: req.APIAddrs, Witness: req.Witness}})
 	n.mu.Unlock()
 	n.saveJoinCode()
 	n.log.Info("cluster: node joined", "name", req.Name)
@@ -429,9 +477,19 @@ type joinState struct {
 	Token    string   `json:"token"`
 	Cluster  []string `json:"cluster"` // addresses to ask for membership
 	Member   bool     `json:"member"`  // membership granted
+	Witness  bool     `json:"witness,omitempty"`
 }
 
 func joinStatePath(dataDir string) string { return filepath.Join(dataDir, "cluster") }
+
+func readJoinState(dataDir string) (joinState, error) {
+	var st joinState
+	b, err := os.ReadFile(joinStatePath(dataDir))
+	if err == nil {
+		err = json.Unmarshal(b, &st)
+	}
+	return st, err
+}
 
 // clusterPost sends req to path on any of addrs, trying each (and again,
 // while an election is under way) until one accepts it.
@@ -472,8 +530,8 @@ func clusterPost(ctx context.Context, fp string, addrs []string, path string, re
 
 // JoinCluster prepares the node in dataDir to join the cluster in code: it
 // adopts the cluster's identity now, and becomes a member when it next
-// starts with --cluster.
-func JoinCluster(ctx context.Context, dataDir, code, raftAddr string, apiAddrs []string) error {
+// starts with --cluster. A witness only votes (see the top of this file).
+func JoinCluster(ctx context.Context, dataDir, code, raftAddr string, apiAddrs []string, witness bool) error {
 	jc, err := parseClusterCode(code)
 	if err != nil {
 		return err
@@ -495,7 +553,7 @@ func JoinCluster(ctx context.Context, dataDir, code, raftAddr string, apiAddrs [
 			return err
 		}
 	}
-	st, _ := json.Marshal(joinState{RaftAddr: raftAddr, APIAddrs: apiAddrs, Token: jc.Token, Cluster: jc.Addrs()})
+	st, _ := json.Marshal(joinState{RaftAddr: raftAddr, APIAddrs: apiAddrs, Token: jc.Token, Cluster: jc.Addrs(), Witness: witness})
 	return os.WriteFile(joinStatePath(dataDir), st, 0o600)
 }
 
@@ -511,7 +569,7 @@ func (n *Node) requestMembership(ctx context.Context) {
 	if json.Unmarshal(b, &st) != nil || st.Member {
 		return
 	}
-	req := joinRequest{Token: st.Token, ID: n.cl.id, Name: hostName(), RaftAddr: st.RaftAddr, APIAddrs: st.APIAddrs}
+	req := joinRequest{Token: st.Token, ID: n.cl.id, Name: hostName(), RaftAddr: st.RaftAddr, APIAddrs: st.APIAddrs, Witness: st.Witness}
 	for ctx.Err() == nil {
 		err := clusterPost(ctx, n.fp, st.Cluster, "/api/v1/cluster/add", req, nil)
 		if err == nil {
@@ -545,11 +603,13 @@ func (n *Node) LeaveCluster(id string) error {
 
 // ClusterStatus describes the cluster for the dashboard.
 type ClusterStatus struct {
-	Enabled bool           `json:"enabled"`
-	Leading bool           `json:"leading"`
-	Self    string         `json:"self"`
-	Leader  string         `json:"leader"`
-	Members []MemberStatus `json:"members"`
+	Enabled   bool           `json:"enabled"`
+	Leading   bool           `json:"leading"`
+	Witness   bool           `json:"witness"`   // this node only votes
+	Preferred string         `json:"preferred"` // member ID that leads when it can
+	Self      string         `json:"self"`
+	Leader    string         `json:"leader"`
+	Members   []MemberStatus `json:"members"`
 }
 
 type MemberStatus struct {
@@ -562,7 +622,7 @@ func (n *Node) ClusterStatus() ClusterStatus {
 	if !n.clustered() {
 		return ClusterStatus{}
 	}
-	st := ClusterStatus{Enabled: true, Leading: n.leading(), Self: n.cl.id}
+	st := ClusterStatus{Enabled: true, Leading: n.leading(), Self: n.cl.id, Witness: n.cl.witness}
 	_, leaderID := n.cl.r.LeaderWithID()
 	st.Leader = string(leaderID)
 	voters := map[string]bool{}
@@ -572,6 +632,7 @@ func (n *Node) ClusterStatus() ClusterStatus {
 		}
 	}
 	n.mu.Lock()
+	st.Preferred = n.cl.prefer
 	for _, m := range n.cl.members {
 		st.Members = append(st.Members, MemberStatus{Member: m, Voter: voters[m.ID], Leader: m.ID == st.Leader})
 	}

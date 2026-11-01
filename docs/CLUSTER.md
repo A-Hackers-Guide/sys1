@@ -52,7 +52,8 @@ A single node is a single point of failure: if its machine dies, the pool stops 
 |---|---|---|
 | 1 | nothing | The default. Back up the data directory. |
 | 2 | nothing | Raft needs a majority: with one of two gone, the other can't safely lead. Only useful as a hot copy. |
-| **3** | **any 1** | **Recommended.** |
+| 2 + a witness | any 1 | **The usual home setup**: your main computer, a standby, and a witness on any third machine. |
+| **3** | **any 1** | **Recommended** when you have three computers that can each run the pool. |
 | 5 | any 2 | For larger pools. |
 
 ### Setting one up
@@ -73,6 +74,25 @@ sys1 --cluster
 The first command fetches the cluster's identity over the pinned, encrypted connection: its TLS certificate (so every node has the same fingerprint, and existing join codes keep working) and the pool key (so any node can run pooled storage). The second starts the node; once it is up, it asks the leader to make it a voting member and catches up with the full state. A node is never counted as a voter before it is running, so adding one can't make the cluster lose its majority.
 
 To run nodes as services: `sys1 install --cluster`.
+
+### A standby and a witness
+
+Most pools have one computer that is always on. To keep the pool running when it isn't, add a **standby** (a second full node) and a **witness**:
+
+```bash
+# on the standby
+sys1 cluster join sys1-cluster:eyJh…
+sudo sys1 install --cluster
+
+# on the witness: any third machine, even a Raspberry Pi
+sys1 cluster join --witness sys1-cluster:eyJh…
+sudo sys1 install --cluster
+```
+
+- **The witness only votes.** It keeps a copy of the pool's state, as every member must, but if it is ever elected it hands leadership to a full node at once. Machines are never sent to it, it lends no capacity of its own, and it opens no router port.
+- **Why a third machine at all.** Two nodes can't tell "the other one died" from "the link between us broke". If each took over in the second case, the pool would have two nodes in charge giving conflicting orders. With a witness, whichever node can reach the witness has the majority, and the other one stands down.
+- **The preferred node.** The node the cluster started on is *preferred*. When it goes down, the standby takes over within seconds and machines follow. When it comes back, it catches up, and once it has answered steadily for a minute, the standby hands leadership back. A node that keeps crashing or drops off a bad link never gets leadership back until it is steady.
+- **Changing it.** `sys1 cluster prefer <node name>` on the leader, or **Make preferred** under **Nodes** on its dashboard. A witness can't be preferred.
 
 ### Ports
 

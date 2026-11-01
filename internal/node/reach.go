@@ -40,7 +40,7 @@ func (n *Node) addrsLocked() []string {
 			seen[a] = true
 		}
 		for id, m := range n.cl.members {
-			if id == n.cl.id {
+			if id == n.cl.id || m.Witness { // clients never use a witness
 				continue
 			}
 			for _, a := range m.APIAddrs {
@@ -121,7 +121,7 @@ func (n *Node) SetInternet(on bool) {
 // applyInternet opens or closes the router mapping to match the settings.
 func (n *Node) applyInternet() {
 	n.mu.Lock()
-	on, m := n.settings.Internet, n.mapping
+	on, m := n.settings.Internet && !n.Witness(), n.mapping // a witness serves no machines
 	n.mu.Unlock()
 	if !on {
 		if m != nil {

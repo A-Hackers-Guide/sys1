@@ -10,6 +10,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -18,8 +19,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -204,7 +207,7 @@ func main() {
 	case "pkg":
 		err = pkg(sub, positional, *keyFile)
 	case "cluster":
-		err = clusterCmd(sub, positional, *dataDir, *raftAddr, *listen)
+		err = clusterCmd(sub, positional, *dataDir, *raftAddr, *listen, *gui)
 	case "version", "--version":
 		fmt.Println("sys1", version.String())
 	case "help", "-h", "--help":
@@ -233,7 +236,7 @@ func serve(ctx context.Context, cfg node.Config, log *slog.Logger, quiet, local 
 			fmt.Printf("\n  sys1 node is running.\n\n  Dashboard:  %s\n\n  Join code for your own machines:\n    %s\n  Join code to share with other people:\n    %s\n\n  Press Ctrl+C to stop.\n\n", url, n.OwnerJoinCode(), n.JoinCode())
 			setup.OpenURL(url)
 		}
-		if local {
+		if local && !n.Witness() { // a witness only votes
 			go runLocalAgent(ctx, n, filepath.Join(cfg.DataDir, "local-client"), log)
 		}
 	})
@@ -407,7 +410,7 @@ func readManifest(path string) (marketplace.Manifest, error) {
 	return m, json.Unmarshal(b, &m)
 }
 
-func clusterCmd(sub string, args []string, dataDir, raftAddr, listen string) error {
+func clusterCmd(sub string, args []string, dataDir, raftAddr, listen, gui string) error {
 	switch sub {
 	case "code":
 		b, err := os.ReadFile(filepath.Join(dataDir, node.ClusterCodeFile))
@@ -417,8 +420,12 @@ func clusterCmd(sub string, args []string, dataDir, raftAddr, listen string) err
 		fmt.Println(strings.TrimSpace(string(b)))
 		return nil
 	case "join":
+		witness := len(args) == 2 && args[0] == "--witness"
+		if witness {
+			args = args[1:]
+		}
 		if len(args) != 1 {
-			return errors.New("usage: sys1 cluster join <cluster code>")
+			return errors.New("usage: sys1 cluster join [--witness] <cluster code>")
 		}
 		_, port, _ := net.SplitHostPort(listen)
 		var api []string
@@ -427,13 +434,54 @@ func clusterCmd(sub string, args []string, dataDir, raftAddr, listen string) err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		if err := node.JoinCluster(ctx, dataDir, args[0], raftAddr, api); err != nil {
+		if err := node.JoinCluster(ctx, dataDir, args[0], raftAddr, api, witness); err != nil {
 			return err
 		}
-		fmt.Println("Joined. Start this node with: sys1 --cluster   (or: sys1 install --cluster)")
+		what := "node"
+		if witness {
+			what = "witness"
+		}
+		fmt.Printf("Joined as a %s. Start it with: sys1 --cluster   (or: sudo sys1 install --cluster)\n", what)
+		return nil
+	case "prefer":
+		if len(args) != 1 {
+			return errors.New("usage: sys1 cluster prefer <node name or ID>")
+		}
+		if err := dashboardPost(dataDir, gui, "/api/cluster/prefer", map[string]string{"node": args[0]}); err != nil {
+			return err
+		}
+		fmt.Println(args[0], "is now the preferred node: it leads whenever it is up.")
 		return nil
 	}
-	return errors.New("usage: sys1 cluster code | sys1 cluster join <code>")
+	return errors.New("usage: sys1 cluster code | sys1 cluster join [--witness] <code> | sys1 cluster prefer <node>")
+}
+
+// dashboardPost calls the dashboard API of the node running here, with
+// the dashboard key from its data directory.
+func dashboardPost(dataDir, gui, path string, req any) error {
+	key, err := os.ReadFile(filepath.Join(dataDir, "dashboard.key"))
+	if err != nil {
+		return errors.New("no node here: run this on a cluster node (as the same user, or with sudo)")
+	}
+	host, port, _ := net.SplitHostPort(gui)
+	if ip := net.ParseIP(host); host == "" || ip == nil || ip.IsUnspecified() {
+		host = "127.0.0.1"
+	}
+	body, _ := json.Marshal(req)
+	hreq, _ := http.NewRequest(http.MethodPost, "http://"+net.JoinHostPort(host, port)+path, bytes.NewReader(body))
+	hreq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(key)))
+	hreq.Header.Set("X-Sys1", "1")
+	hreq.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(hreq)
+	if err != nil {
+		return fmt.Errorf("the node isn't answering: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return errors.New(strings.TrimSpace(string(msg)))
+	}
+	return nil
 }
 
 // localIPs lists this machine's IPv4 addresses that other machines might

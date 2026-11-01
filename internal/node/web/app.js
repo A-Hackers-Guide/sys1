@@ -278,19 +278,30 @@ async function renderNodes(s) {
     return;
   }
   const rows = (c.members || []).map((m) => h("div", { class: "item" },
-    h("div", { class: "emoji" }, m.leader ? "👑" : "🖥️"),
+    h("div", { class: "emoji" }, m.leader ? "👑" : m.witness ? "⚖️" : "🖥️"),
     h("div", { class: "grow" },
       h("div", { class: "title" }, m.name + (m.id === c.self ? " (this node)" : "")),
-      h("div", { class: "msg mono" }, (m.apiAddrs || []).join(", "))),
-    h("span", { class: "chip " + (m.leader ? "ok" : m.voter ? "accent" : "warn") }, m.leader ? "Leading" : m.voter ? "Standby" : "Joining")));
+      h("div", { class: "msg" }, m.witness ? "Witness: only votes, so the pool always knows which node is in charge"
+        : m.id === c.preferred ? "Preferred: leads whenever it is up" : (m.apiAddrs || []).join(", "))),
+    c.leading && !m.witness && m.voter && m.id !== c.preferred &&
+      h("button", { class: "small", onclick: () => prefer(m) }, "Make preferred"),
+    h("span", { class: "chip " + (m.leader ? "ok" : m.voter ? "accent" : "warn") },
+      m.leader ? "Leading" : !m.voter ? "Joining" : m.witness ? "Witness" : "Standby")));
   if (box.dataset.code === undefined && c.leading) {
     box.dataset.code = "";
     try { box.dataset.code = (await api("/api/cluster/code")).code; } catch {}
   }
   const code = box.dataset.code;
   fill(box, rows,
-    c.leading && code && h("p", { class: "muted small" }, "To add another node, run this on it, then start it with sys1 --cluster:"),
+    c.leading && code && h("p", { class: "muted small" }, "To add a node, run this on it, then start it with sys1 --cluster. For a witness (any small machine; it only votes), add --witness after join:"),
     c.leading && code && h("pre", {}, h("code", {}, "sys1 cluster join " + code)));
+}
+
+async function prefer(m) {
+  try {
+    await api("/api/cluster/prefer", { node: m.id });
+    toast(m.name + " is now preferred; it takes over within a minute");
+  } catch (err) { toast(err.message); }
 }
 
 function renderAdd(s) {

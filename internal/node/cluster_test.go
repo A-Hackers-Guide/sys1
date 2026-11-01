@@ -87,7 +87,7 @@ func TestClusterSurvivesLeaderLoss(t *testing.T) {
 	nodes := []*clusterNode{a}
 	for _, name := range []string{"b", "c"} {
 		dir, api, raftAddr := filepath.Join(root, name), freePort(t), freePort(t)
-		if err := JoinCluster(context.Background(), dir, code, raftAddr, []string{api}); err != nil {
+		if err := JoinCluster(context.Background(), dir, code, raftAddr, []string{api}, false); err != nil {
 			t.Fatalf("%s join: %v", name, err)
 		}
 		nodes = append(nodes, startClusterNode(t, dir, api, raftAddr))
