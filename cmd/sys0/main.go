@@ -42,7 +42,8 @@ Usage:
   sys0 join <code>          join a node without the wizard
         --name <name>         name shown on the node (default: hostname)
         --trust owner|community
-                              "owner" if you run the node yourself (default: community)
+                              ask for "community" to stay sandboxed even with the
+                              code for your own machines (the code decides otherwise)
         --max-tasks <n>       most tasks at once (default 4)
         --storage-gb <n>      disk space to lend for pooled storage (default 10, 0 = none)
         --open-internet       let apps from other people's pools use this machine's

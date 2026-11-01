@@ -45,8 +45,8 @@ const (
 	checksumsName = "checksums.txt"
 	bundleName    = "checksums.txt.sigstore.json"
 	maxArchive    = 200 << 20
-	// A new version that starts this many times without running healthy
-	// for HealthyAfter is rolled back.
+	// A new version that restarts this many times in quick succession
+	// without running healthy for HealthyAfter is rolled back.
 	maxStarts    = 3
 	HealthyAfter = 10 * time.Minute
 )
@@ -357,12 +357,22 @@ func extract(archive []byte, isZip bool, bin string) ([]byte, error) {
 
 // state is kept in <data>/update.json across the restart.
 type state struct {
-	From    string    `json:"from"`
-	To      string    `json:"to"`
-	Starts  int       `json:"starts"`
-	Skip    []string  `json:"skip,omitempty"` // versions rolled back
-	Checked time.Time `json:"checked"`
+	From      string    `json:"from"`
+	To        string    `json:"to"`
+	Starts    int       `json:"starts"`
+	LastStart time.Time `json:"lastStart,omitzero"`
+	// SkipUntil holds versions that were rolled back; they're tried again
+	// after a while, so a rollback can't keep a fix away for good.
+	SkipUntil map[string]time.Time `json:"skipUntil,omitempty"`
+	Checked   time.Time            `json:"checked"`
 }
+
+// startWindow: starts further apart than this aren't a crash loop (a
+// reboot, a restart by hand), so they don't count toward a rollback.
+const startWindow = 5 * time.Minute
+
+// skipFor is how long a rolled-back version is left alone.
+const skipFor = 72 * time.Hour
 
 func (u *Updater) statePath() string { return filepath.Join(u.DataDir, "update.json") }
 
@@ -424,9 +434,9 @@ func (u *Updater) Install(newBin []byte, to string) error {
 	return u.save(s)
 }
 
-// Startup runs first thing in every start. It counts starts of a freshly
-// installed version and rolls back to the previous binary when that
-// version keeps failing; the caller then exits so the old one starts.
+// Startup runs first thing in every start. It counts quick restarts of a
+// freshly installed version and rolls back to the previous binary when
+// that version keeps failing; the caller then exits so the old one starts.
 // It reports whether it rolled back.
 func (u *Updater) Startup() (rolledBack bool) {
 	u.defaults()
@@ -434,7 +444,12 @@ func (u *Updater) Startup() (rolledBack bool) {
 	if s.To == "" || s.To != u.Current {
 		return false
 	}
+	now := time.Now()
+	if now.Sub(s.LastStart) > startWindow {
+		s.Starts = 0
+	}
 	s.Starts++
+	s.LastStart = now
 	if s.Starts <= maxStarts {
 		u.save(s)
 		return false
@@ -453,7 +468,10 @@ func (u *Updater) Startup() (rolledBack bool) {
 		return false
 	}
 	u.Log.Error("the new version keeps failing; went back to the previous one", "bad", s.To, "back to", s.From)
-	s.Skip = append(s.Skip, s.To)
+	if s.SkipUntil == nil {
+		s.SkipUntil = map[string]time.Time{}
+	}
+	s.SkipUntil[s.To] = now.Add(skipFor)
 	s.From, s.To, s.Starts = "", "", 0
 	u.save(s)
 	return true
@@ -486,11 +504,8 @@ func (u *Updater) Once(ctx context.Context) (string, error) {
 	if r.Draft || r.Pre || !Newer(v, u.Current) {
 		return "", nil
 	}
-	s := u.load()
-	for _, skip := range s.Skip {
-		if skip == v {
-			return "", nil
-		}
+	if until, ok := u.load().SkipUntil[v]; ok && time.Now().Before(until) {
+		return "", nil
 	}
 	bin, err := u.Fetch(ctx, r)
 	if err != nil {

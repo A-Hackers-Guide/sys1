@@ -14,7 +14,7 @@ To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
 ## Trust levels
 
-Every machine's owner picks one at setup. **The client enforces it, not the node.**
+**The join code decides it.** The node has two: one for the owner's own machines and one to share. A machine that joins with the shared code is a community machine whatever it asks for, so nobody can get owner-only work (VMs, native programs, unauthenticated services, backups) by claiming a machine is the owner's. A machine's owner can also ask for less: a lender who picks **Shared** stays community even with the owner code. **The client enforces its own level too**: it never takes the node's word for it.
 
 | | 🏠 **Owner** ("this is my machine") | 🤝 **Community** ("I'm sharing it") |
 |---|---|---|
@@ -58,7 +58,7 @@ The node validates on deploy; the client validates again on receipt (`internal/p
 The dashboard can control the whole pool, so:
 
 - It listens on **127.0.0.1 only** by default.
-- Access needs a **192-bit key** (in the link printed at start, or `sys1 open`), stored as an `HttpOnly`, `SameSite=Strict` cookie.
+- Access needs a **192-bit key** (in the link printed at start, or `sys1 open`). The page moves it from the address bar into its own storage and sends it in an `Authorization` header. It is never a cookie: browsers send cookies for `127.0.0.1` to every port on it, apps on the pool included. **Make a new dashboard key** locks out every other browser.
 - **Host header check** blocks DNS-rebinding attacks from malicious websites.
 - **Changes need a custom `X-Sys1` header**, which cross-site forms cannot send (CSRF protection).
 - **Strict Content-Security-Policy:** `default-src 'self'`, no inline scripts, no third-party code, `frame-ancestors 'none'`.
@@ -72,13 +72,17 @@ The dashboard can control the whole pool, so:
 - Every package shows its permissions in plain words before deploy ("Uses the network", "Opens port 8096"…).
 - Builtin package names cannot be shadowed by third-party ones.
 
+## Machines must stay in their folders
+
+Task, backup and restore IDs from the node name folders on the client, so the client accepts only plain IDs (letters, digits, `-`, `_`) and refuses anything with a path in it before touching the disk. Snapshot IDs are checked as content hashes.
+
 ## Updates
 
-sys0 and sys1 install a new version only if `checksums.txt` carries a Sigstore signature from this repository's release workflow on a version tag, logged in Sigstore's transparency log, and the archive matches its checksum. There's no long-lived signing key to steal; a compromised GitHub account could still publish a release through the real workflow, and that release would be visible in the public log. A version that keeps failing to start is rolled back. See [Automatic updates](UPDATES.md).
+sys0 and sys1 install a new version only if `checksums.txt` carries a Sigstore signature from this repository's release workflow on a version tag, logged in Sigstore's transparency log, and the archive matches its checksum. There's no long-lived signing key to steal; a compromised GitHub account could still publish a release through the real workflow, and that release would be visible in the public log. A version that keeps failing to start (several restarts within minutes) is rolled back and retried 3 days later. In the release workflow only the final job can write to the release; it checks that GoReleaser's builds still match GoReleaser's own checksums before signing, and third-party tools are pinned by hash. See [Automatic updates](UPDATES.md).
 
 ## Crash reports
 
-Reports carry only an app, version, OS, CPU, a scrubbed message and Go stack frames. They are scrubbed on the machine, checked and scrubbed again by the node and by the project's intake, and the intake alone holds a GitHub token (issues only, one repository). Lenders and pool owners can turn them off. See [Crash reports](CRASHES.md).
+Reports carry only an app, version, OS, CPU, a scrubbed message and Go stack frames. They are scrubbed on the machine, checked and scrubbed again by the node and by the project's intake (which also recompute each bug's signature, so a sender can't make up new ones, and remove anything that could break out of the code block or add a link), and the intake alone holds a GitHub token (issues only, one repository). Lenders and pool owners can turn them off. See [Crash reports](CRASHES.md).
 
 ## Threat model: honest limits
 
@@ -92,6 +96,6 @@ Reports carry only an app, version, OS, CPU, a scrubbed message and Go stack fra
 | A machine **holding pool copies** reads or alters them | **Prevented.** Chunks are AES-256-GCM encrypted on the machine they come from, and holders never get a key. Altered chunks fail their SHA-256 check and are replaced from another copy. A holder can see only how many chunks it has and their sizes. |
 | A malicious **node** reads your backed-up folders | The node holds the pool key, so a node you don't control could read what you back up to it. Back up only to your own node. Backups only run on owner machines, so a community machine never lets a node read its folders. |
 | A malicious **client** reads the data of apps it runs | **Inherent.** Whoever owns a machine can inspect what runs on it. Don't deploy secrets to machines you don't trust. Confidential computing (SEV/TDX) is a long-term roadmap item. |
-| Someone steals the join code | They can join a machine to your pool (they gain nothing from your pool). Rotate the code. Machines they joined can be removed. |
+| Someone steals the shared join code | They can join a machine to your pool as a community machine (they gain nothing from your pool). Rotate the codes. Machines they joined can be removed. |
 | Someone steals the dashboard key | Full control of the pool. Treat it like a password. Delete `dashboard.key` and restart the node to rotate it. |
 | Supply chain (our own releases) | Releases are built by GitHub Actions from tagged commits, with SHA-256 checksums. Reproducible builds and signed releases (Sigstore) are on the roadmap. |

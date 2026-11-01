@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -71,11 +72,53 @@ func (p Policy) hostAllowed(host string) bool {
 	return false
 }
 
+// notPublic lists ranges that aren't the public internet beyond what
+// net.IP's own checks cover, including IPv6 ranges that carry an IPv4
+// address a router may translate to (NAT64, 6to4, Teredo): those are
+// checked by the IPv4 address inside.
+var notPublic = func() []netip.Prefix {
+	var out []netip.Prefix
+	for _, c := range []string{"0.0.0.0/8", "100.64.0.0/10", "192.0.0.0/24", "192.0.2.0/24", "198.18.0.0/15",
+		"198.51.100.0/24", "203.0.113.0/24", "240.0.0.0/4", "2001:db8::/32", "100::/64"} {
+		out = append(out, netip.MustParsePrefix(c))
+	}
+	return out
+}()
+
+var (
+	nat64      = netip.MustParsePrefix("64:ff9b::/96")
+	nat64Local = netip.MustParsePrefix("64:ff9b:1::/48")
+	sixToFour  = netip.MustParsePrefix("2002::/16")
+	teredo     = netip.MustParsePrefix("2001::/32")
+)
+
 // publicIP reports whether ip is on the public internet.
 func publicIP(ip net.IP) bool {
-	_, cgnat, _ := net.ParseCIDR("100.64.0.0/10")
+	a, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	a = a.Unmap()
+	switch {
+	case nat64.Contains(a):
+		b := a.As16()
+		return publicIP(net.IP(b[12:16]))
+	case nat64Local.Contains(a):
+		return false
+	case sixToFour.Contains(a):
+		b := a.As16()
+		return publicIP(net.IP(b[2:6]))
+	case teredo.Contains(a):
+		b := a.As16() // the client's address, inverted
+		return publicIP(net.IP{^b[12], ^b[13], ^b[14], ^b[15]})
+	}
+	for _, p := range notPublic {
+		if p.Contains(a) {
+			return false
+		}
+	}
 	return !(ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsMulticast() || ip.IsUnspecified() || cgnat.Contains(ip) || ip.IsInterfaceLocalMulticast())
+		ip.IsMulticast() || ip.IsUnspecified() || ip.IsInterfaceLocalMulticast() || a == netip.MustParseAddr("255.255.255.255"))
 }
 
 // Dial connects to host:port if the policy allows it. The address is

@@ -10,7 +10,7 @@ sys0 and sys1 keep themselves up to date. You don't have to do anything.
    - The archive for this OS and CPU must match its SHA-256 in `checksums.txt`.
 3. **Installing.** The new binary is written next to the old one and swapped in with a rename, which works on every OS, even while the app is running. The old binary is kept as `sys0.old` (or `sys1.old`).
 4. **Restarting.** The app exits and the OS service manager (launchd, systemd, the Windows service manager…) starts the new version. Apps you started yourself in a terminal keep running and use the new version the next time they start.
-5. **Rolling back.** If the new version starts 3 times without staying up for 10 minutes, the old binary is put back and that version is skipped from then on. Once the new version has run for 10 minutes, the old binary is deleted.
+5. **Rolling back.** If the new version restarts more than 3 times in quick succession (each within 5 minutes of the last) without staying up for 10 minutes, the old binary is put back and that version is skipped for 3 days. Reboots and restarts by hand don't count. Once the new version has run for 10 minutes, the old binary is deleted.
 
 Updates are checked one machine at a time. Each one fetches straight from GitHub; nothing goes through the node.
 

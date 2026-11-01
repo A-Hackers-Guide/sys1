@@ -43,7 +43,7 @@ It comes as **two apps, everywhere**:
 
 ## What it does today (v0.6)
 
-- ✅ **Joins machines in one paste.** The node shows a join code; paste it into the sys0 installer.
+- ✅ **Joins machines in one paste.** The node shows two join codes, one for your own machines and one to share; paste one into the sys0 installer.
 - ✅ **Lowest priority on every OS.** `nice 19` + idle I/O on Linux, background QoS on macOS, `IDLE_PRIORITY_CLASS` + background mode on Windows, `nice 19` on BSD/UNIX. Containers get the minimum CPU weight too.
 - ✅ **Places work on the best machine** by spare CPU, memory and GPU, and skips busy machines and laptops on battery.
 - ✅ **Watchdog.** Crashed apps restart with backoff. After **5 crashes in a row** it stops, uploads the app's fast-saved checkpoint to the node, and the node **moves the app to another machine**, which resumes from that checkpoint.
@@ -71,7 +71,7 @@ sys1
 
 The dashboard opens in your browser. That machine is already part of the pool.
 
-**2. Add more machines.** Install sys0 on each one and paste the join code from the dashboard's **Add a machine** tab. Or from a terminal:
+**2. Add more machines.** Install sys0 on each one and paste a join code from the dashboard's **Add a machine** tab: one for your own machines, one to share with other people. Or from a terminal:
 
 ```bash
 sys0 join sys1-join:eyJh…

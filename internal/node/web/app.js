@@ -7,7 +7,7 @@ const $ = (sel) => document.querySelector(sel);
 // The dashboard key arrives once as ?key= (from `sys1 open`), is kept in
 // this page's own storage (which, unlike a cookie, no other port on this
 // machine can read) and is sent as a header.
-const KEY = (() => {
+let KEY = (() => {
   const fromURL = new URLSearchParams(location.search).get("key");
   if (fromURL) history.replaceState(null, "", location.pathname);
   try {
@@ -377,6 +377,15 @@ for (const [btn, field] of [["#copy", "#joincode"], ["#copy-owner", "#ownercode"
     catch { $(field).select(); toast("Press Ctrl+C / ⌘C to copy"); }
   });
 }
+$("#rotate-dash").addEventListener("click", async () => {
+  if (!confirm("Make a new dashboard key? Other browsers and old links stop working.")) return;
+  try {
+    const { key } = await api("/api/dashboard-key/rotate", {});
+    KEY = key;
+    try { localStorage.setItem("sys1.key", key); } catch {}
+    toast("New dashboard key; this browser keeps working");
+  } catch (e) { toast(e.message); }
+});
 $("#rotate").addEventListener("click", async () => {
   if (!confirm("Make new join codes? The current ones stop working for new machines.")) return;
   try { await api("/api/joincode/rotate", {}); toast("New join code ready"); refresh(); } catch (e) { toast(e.message); }

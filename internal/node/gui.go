@@ -37,6 +37,23 @@ func loadGUIKey(dataDir string) string {
 	return k
 }
 
+func (n *Node) dashKey() string { return n.guiKey.Load().(string) }
+
+// RotateGUIKey replaces the dashboard key: old links and browsers stop
+// working. It returns the new key.
+func (n *Node) RotateGUIKey() (string, error) {
+	k := randomToken()
+	path := filepath.Join(n.cfg.DataDir, "dashboard.key")
+	if err := os.WriteFile(path+".tmp", []byte(k+"\n"), 0o600); err != nil {
+		return "", err
+	}
+	if err := os.Rename(path+".tmp", path); err != nil {
+		return "", err
+	}
+	n.guiKey.Store(k)
+	return k, nil
+}
+
 // GUIKey reads the dashboard key from a data directory (for `sys1 open`).
 func GUIKey(dataDir string) string { return loadGUIKey(dataDir) }
 
@@ -98,6 +115,14 @@ func (n *Node) guiHandler(addr string) http.Handler {
 	}))
 	mux.HandleFunc("GET /api/storage", n.guiAuth(n.handleStorage))
 	mux.HandleFunc("GET /api/crashes", n.guiAuth(n.handleCrashes))
+	mux.HandleFunc("POST /api/dashboard-key/rotate", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		k, err := n.RotateGUIKey()
+		if err != nil {
+			replyErr(w, err)
+			return
+		}
+		writeJSON(w, map[string]string{"key": k})
+	}))
 	mux.HandleFunc("POST /api/crashes/sending", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		var req struct{ On bool }
 		if readJSON(w, r, 1<<10, &req) {
@@ -181,7 +206,7 @@ func (n *Node) guiHandler(addr string) http.Handler {
 func (n *Node) guiAuth(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !ok || subtle.ConstantTimeCompare([]byte(key), []byte(n.guiKey)) != 1 {
+		if !ok || subtle.ConstantTimeCompare([]byte(key), []byte(n.dashKey())) != 1 {
 			http.Error(w, "locked", http.StatusUnauthorized)
 			return
 		}

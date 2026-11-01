@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/crash"
@@ -62,7 +63,7 @@ type Node struct {
 	j      *journal.Journal
 	cert   tls.Certificate
 	fp     string
-	guiKey string
+	guiKey atomic.Value // string; replaced by RotateGUIKey
 
 	mu        sync.Mutex
 	agents    map[string]*Agent
@@ -123,7 +124,7 @@ func New(cfg Config, log *slog.Logger) (*Node, error) {
 	for _, a := range n.agents {
 		a.LastSeen = n.started
 	}
-	n.guiKey = loadGUIKey(cfg.DataDir)
+	n.guiKey.Store(loadGUIKey(cfg.DataDir))
 	n.localToken = randomToken()
 	return n, nil
 }
@@ -187,7 +188,7 @@ func lanIP() string {
 
 // GUIURL is the dashboard address, including the access key.
 func (n *Node) GUIURL(addr string) string {
-	return "http://" + addr + "/?key=" + n.guiKey
+	return "http://" + addr + "/?key=" + n.dashKey()
 }
 
 // Serve runs the client API and the GUI until ctx is cancelled. ready, if

@@ -26,10 +26,14 @@ You'll see:
   sys1 node is running.
 
   Dashboard:  http://127.0.0.1:7700/?key=…
-  Join code:  sys1-join:eyJh…
+
+  Join code for your own machines:
+    sys1-join:eyJh…
+  Join code to share with other people:
+    sys1-join:eyJi…
 ```
 
-and the dashboard opens in your browser. The link contains a private key: only someone with it can control your pool. Bookmark the dashboard after it opens; the key is saved in a cookie.
+and the dashboard opens in your browser. The link contains a private key: only someone with it can control your pool. The dashboard keeps the key in the browser and takes it out of the address bar, so you can bookmark `http://127.0.0.1:7700/`. Another browser needs the link again: run `sys1 open`.
 
 ### Keep the node running all the time
 
@@ -62,16 +66,18 @@ On each machine you want to add:
 
 1. Install **sys0**: the same install as the node (`brew install a-hackers-guide/tap/sys1`, the one-line installer, or [Releases](https://github.com/A-Hackers-Guide/sys1/releases)).
 2. Run it: double-click, or run `sys0`. A setup wizard opens in your browser.
-3. Paste the **join code** from the node's dashboard (**Add a machine** tab).
-4. Choose **whose machine this is**:
-   - **Mine**: you run the node too. Native programs may run here.
-   - **Shared**: you're lending it to someone else's pool. Only sandboxed containers run here. **This is the safe choice.**
+3. Paste a **join code** from the node's dashboard (**Add a machine** tab). There are two:
+   - **For your own machines**: they can also run virtual machines, native programs and apps without a password. Keep this one to yourself.
+   - **To share with other people**: machines lent to you only run sandboxed containers, with no access to their owner's network.
+
+   The code decides how far the pool trusts a machine, so a machine can't make itself yours.
+4. Choose **whose machine this is**. **Shared** keeps a machine sandboxed even with your own code; **Mine** only counts with the code for your own machines.
 5. Click **Join the pool**. sys0 installs itself as a background service and disappears.
 
 Terminal-only machines (servers, SSH):
 
 ```bash
-sys0 join 'sys1-join:eyJh…' --name "basement server" --trust owner
+sys0 join 'sys1-join:eyJh…' --name "basement server"   # the code from: sys1 join-code --mine
 ```
 
 Check on it any time:
@@ -111,7 +117,8 @@ You don't have to do anything. That's the point.
 - Stop an app: **Apps → Stop**. Clear finished ones with **Clear**.
 - Remove a machine from the pool: **Machines → Remove**. Its apps move elsewhere.
 - Uninstall sys0 from a machine: `sys0 uninstall`, then delete the binary.
-- Stop new machines joining with an old code: **Add a machine → Make a new join code**.
+- Stop new machines joining with old codes: **Add a machine → Make new join codes**.
+- Lock out every other browser and old dashboard link: **Add a machine → Make a new dashboard key**.
 
 ## Where things are stored
 

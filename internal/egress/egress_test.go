@@ -142,3 +142,17 @@ func TestForward(t *testing.T) {
 		t.Fatalf("ParseForward: %s %s %v", l, tg, err)
 	}
 }
+
+func TestPublicIPSeesThroughTranslation(t *testing.T) {
+	for ip, want := range map[string]bool{
+		"93.184.216.34": true, "2606:2800:220:1::1": true,
+		"192.168.1.1": false, "10.0.0.1": false, "127.0.0.1": false, "100.64.1.1": false, "0.1.2.3": false,
+		"198.18.0.5": false, "240.0.0.1": false, "255.255.255.255": false, "::1": false, "fe80::1": false, "fd00::1": false,
+		"64:ff9b::c0a8:101": false, "64:ff9b::5db8:d822": true, // NAT64 of 192.168.1.1 / 93.184.216.34
+		"2002:c0a8:101::1": false, "64:ff9b:1::1": false, "::ffff:192.168.1.1": false,
+	} {
+		if got := publicIP(net.ParseIP(ip)); got != want {
+			t.Errorf("publicIP(%s) = %v", ip, got)
+		}
+	}
+}

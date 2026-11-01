@@ -22,7 +22,7 @@ func TestDashboardAuth(t *testing.T) {
 		h.ServeHTTP(w, r)
 		return w.Code
 	}
-	bearer := func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+n.guiKey) }
+	bearer := func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+n.dashKey()) }
 	for _, c := range []struct {
 		name   string
 		method string
@@ -31,7 +31,7 @@ func TestDashboardAuth(t *testing.T) {
 	}{
 		{"no key", "GET", nil, 401},
 		{"wrong key", "GET", func(r *http.Request) { r.Header.Set("Authorization", "Bearer nope") }, 401},
-		{"key as a cookie", "GET", func(r *http.Request) { r.AddCookie(&http.Cookie{Name: oldKeyCookie, Value: n.guiKey}) }, 401},
+		{"key as a cookie", "GET", func(r *http.Request) { r.AddCookie(&http.Cookie{Name: oldKeyCookie, Value: n.dashKey()}) }, 401},
 		{"key as a header", "GET", bearer, 200},
 		{"change without X-Sys1", "POST", bearer, 403},
 		{"other host", "GET", func(r *http.Request) { bearer(r); r.Host = "evil.example:7700" }, 403},
@@ -43,5 +43,12 @@ func TestDashboardAuth(t *testing.T) {
 		if got := do(c.method, path, c.set); got != c.want {
 			t.Errorf("%s: %d, want %d", c.name, got, c.want)
 		}
+	}
+	old := n.dashKey()
+	if _, err := n.RotateGUIKey(); err != nil || n.dashKey() == old || GUIKey(n.cfg.DataDir) != n.dashKey() {
+		t.Fatal("the dashboard key didn't change")
+	}
+	if do("GET", "/api/state", func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+old) }) != 401 {
+		t.Fatal("the old key still works")
 	}
 }

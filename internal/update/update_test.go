@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func archive(t *testing.T, bin string, content []byte) []byte {
@@ -148,9 +149,30 @@ func TestRollbackAfterRepeatedFailedStarts(t *testing.T) {
 	if b, _ := os.ReadFile(u.Exe); string(b) != "old binary" {
 		t.Fatalf("old binary not restored: %q", b)
 	}
-	// 0.8.0 is skipped from now on.
+	// 0.8.0 is skipped for a while, then tried again.
 	if v, err := u.Once(context.Background()); v != "" || err != nil {
 		t.Fatalf("bad version installed again: %q, %v", v, err)
+	}
+	st := u.load()
+	st.SkipUntil["0.8.0"] = time.Now().Add(-time.Minute)
+	u.save(st)
+	if v, _ := u.Once(context.Background()); v != "0.8.0" {
+		t.Fatal("a rolled-back version was never tried again")
+	}
+}
+
+func TestSlowRestartsDontRollBack(t *testing.T) {
+	u := newUpdater(t, fakeGitHub(t, "0.8.0", []byte("new binary"), false), nil)
+	u.Once(context.Background())
+	next := *u
+	next.Current = "0.8.0"
+	for i := 0; i < maxStarts+3; i++ {
+		st := next.load()
+		st.LastStart = time.Now().Add(-time.Hour) // e.g. a reboot an hour later
+		next.save(st)
+		if next.Startup() {
+			t.Fatal("rolled back on restarts an hour apart")
+		}
 	}
 }
 

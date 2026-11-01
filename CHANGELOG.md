@@ -14,6 +14,18 @@ All notable changes are listed here. Versions follow [semantic versioning](https
 - An upgrade test in CI from every earlier release: the node keeps its identity, join code, machines and apps.
 - **Battery detection on FreeBSD, DragonFly, OpenBSD and NetBSD** (`hw.acpi.acline`, `apm -a`, `envstat`): laptops pause on battery like everywhere else.
 
+### Security
+
+These come from a security review of the whole project.
+
+- **A malicious node could make a lent machine delete or write any folder** by sending a task ID with a path in it. Clients now refuse any task, backup, restore or snapshot ID that isn't a plain ID. Everyone lending machines to other people's pools should update.
+- **A machine could make itself the owner's** by asking. The node now has two join codes, one for your own machines and one to share, and the code decides. Machines that already joined keep their trust. `sys1 join-code --mine` prints the owner code.
+- **The dashboard key was a cookie**, which browsers send to every port on `127.0.0.1`, including apps on the pool. It now lives in the page and travels in a header; old cookies are deleted. **Make a new dashboard key** locks out other browsers.
+- Crash reports can't add links or break out of their code block, signatures are recomputed by the node and the intake, each machine may send 20 a day, and the intake caps new issues per hour.
+- The sandbox gateway also refuses NAT64, 6to4 and Teredo addresses of private networks, and the other reserved ranges.
+- Release workflow: read-only tokens for every job but the final one, which checks GoReleaser's builds against GoReleaser's checksums before signing; third-party tools pinned by hash.
+- An update is rolled back only for a quick crash loop, and a rolled-back version is retried after 3 days.
+
 ### Fixed
 
 - A relative `--data` folder broke containers (Docker needs absolute volume paths); data folders are now made absolute.

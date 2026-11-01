@@ -33,7 +33,7 @@ Unknown or removed machines get `401`.
   "apiVersion": 1,
   "joinToken": "…",
   "name": "basement server",
-  "trust": "owner | community",
+  "trust": "owner | community",   // a request; the node decides by the join token
   "version": "0.1.0",
   "resources": { …Resources… }
 }
