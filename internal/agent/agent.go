@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/crash"
+	"github.com/A-Hackers-Guide/sys1/internal/engines"
 	"github.com/A-Hackers-Guide/sys1/internal/journal"
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
 	"github.com/A-Hackers-Guide/sys1/internal/resources"
@@ -46,6 +47,8 @@ type Agent struct {
 	log     *slog.Logger
 
 	crashesSent time.Time
+	sampler     *resources.Sampler
+	engines     *engines.Supervisor
 	updateNow   int
 	c           *client
 	outbox      *journal.Journal
@@ -80,7 +83,8 @@ func New(dataDir string, cfg Config, log *slog.Logger) (*Agent, error) {
 		tasksDir: tasksDir(dataDir),
 	}
 	a.c.auth = cfg.AgentID + "." + cfg.Secret
-	a.Sample = (&resources.Sampler{DataDir: dataDir}).Sample
+	a.sampler = &resources.Sampler{DataDir: dataDir}
+	a.Sample = a.sampler.Sample
 	var err error
 	a.outbox, err = journal.Open(filepath.Join(dataDir, "outbox.log"), func(b []byte) error {
 		var r protocol.Result
@@ -124,6 +128,14 @@ func (a *Agent) sendCrashes(ctx context.Context) {
 
 func (a *Agent) Run(ctx context.Context) error {
 	defer a.shutdown()
+	if a.cfg.KeepsEngines() {
+		a.engines = &engines.Supervisor{Log: a.log.With("component", "engines"), Changed: func() {
+			if a.sampler != nil {
+				a.sampler.Refresh()
+			}
+		}}
+		go a.engines.Run(ctx)
+	}
 	a.log.Info("sys0 running", "node", a.cfg.NodeAddr, "name", a.cfg.Name, "trust", a.cfg.Trust, "version", version.Version)
 	backoff := time.Second
 	for {
@@ -173,6 +185,11 @@ func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, erro
 	res := a.Sample(a.cfg.Trust == protocol.TrustOwner)
 	res.OpenInternet = a.cfg.OpenInternet
 	res.Updates = a.Updates
+	if a.engines != nil {
+		if p := a.engines.Problem(); p != "" {
+			res.Problems = append([]string{p}, res.Problems...)
+		}
+	}
 	a.mu.Lock()
 	a.last = res
 	req := protocol.HeartbeatRequest{Resources: res, Version: version.Version, Storage: a.st.report()}

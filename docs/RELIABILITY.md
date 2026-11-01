@@ -78,3 +78,14 @@ done
 Write to a temporary file and rename it, so a crash mid-write never leaves a half-written checkpoint.
 
 The end-to-end test `TestCrashLoopMovesTaskWithCheckpoint` in `internal/node/node_test.go` proves the full path: crash 5×, give up, upload checkpoint, move, resume on another machine.
+
+## Container engines
+
+Most apps need a container engine, so sys0 keeps it running the same way it keeps apps running. On your own machines (and on lent machines whose owner runs `sys0 keep-engines-running on`):
+
+- **At start**, which is at boot, sys0 starts the engine that's installed: Docker Desktop, OrbStack, Rancher Desktop, Colima or a Podman machine on a Mac; Docker Desktop, Rancher Desktop or Podman on Windows; the Docker service on Linux.
+- **If it stops or crashes**, sys0 notices within 30 seconds and starts it again.
+- **If it keeps failing**, sys0 slows down after 5 tries in a row, tries every 30 minutes, and the machine's card on the dashboard says what went wrong.
+- Desktop apps such as Docker Desktop only run in someone's session: sys0 starts them for whoever is signed in at the screen. With nobody signed in, the card says so.
+
+`sys0 doctor` shows the engines sys0 found and whether it keeps them running.

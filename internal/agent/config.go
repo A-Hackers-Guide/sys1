@@ -31,6 +31,22 @@ type Config struct {
 	NoAutoUpdate bool `json:"noAutoUpdate,omitempty"`
 	// NoCrashReports keeps crash reports on this machine (see internal/crash).
 	NoCrashReports bool `json:"noCrashReports,omitempty"`
+	// KeepEngines is "on" or "off": whether sys0 starts the installed
+	// container engine (Docker Desktop…) and keeps it running. Empty means
+	// on for your own machines and off for machines you lend.
+	KeepEngines string `json:"keepEngines,omitempty"`
+}
+
+// KeepsEngines reports whether sys0 keeps this machine's container engine
+// running.
+func (c Config) KeepsEngines() bool {
+	switch c.KeepEngines {
+	case "on":
+		return true
+	case "off":
+		return false
+	}
+	return c.Trust == protocol.TrustOwner
 }
 
 // DefaultStorageGB is lent when the owner has not chosen a size.

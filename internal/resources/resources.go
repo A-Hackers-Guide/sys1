@@ -29,6 +29,14 @@ type Sampler struct {
 	problems []string
 }
 
+// Refresh makes the next Sample measure GPUs and runtimes again, for when
+// something just changed (a container engine started).
+func (s *Sampler) Refresh() {
+	s.mu.Lock()
+	s.probed = time.Time{}
+	s.mu.Unlock()
+}
+
 func (s *Sampler) Sample(allowExec bool) protocol.Resources {
 	r := protocol.Resources{OS: runtime.GOOS, Arch: runtime.GOARCH, CPUCores: runtime.NumCPU()}
 	if r.OS == "linux" && isAndroid() {

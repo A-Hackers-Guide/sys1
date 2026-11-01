@@ -27,6 +27,7 @@ import (
 	"github.com/A-Hackers-Guide/sys1/internal/cli"
 	"github.com/A-Hackers-Guide/sys1/internal/crash"
 	"github.com/A-Hackers-Guide/sys1/internal/egress"
+	"github.com/A-Hackers-Guide/sys1/internal/engines"
 	"github.com/A-Hackers-Guide/sys1/internal/paths"
 	"github.com/A-Hackers-Guide/sys1/internal/priority"
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
@@ -54,10 +55,14 @@ Usage:
         --no-service          do not install the background service
   sys0 auto-update on|off   turn automatic updates on or off (default on)
   sys0 crash-reports on|off send crash reports to the node (default on)
+  sys0 keep-engines-running on|off
+                            start Docker Desktop (or OrbStack, Podman…) and keep it
+                            running (default: on for your own machines)
   sys0 update               install the latest version now
   sys0 run                  run in the foreground (what the service runs)
   sys0 status               show settings and service state
-  sys0 doctor               check what this machine can run, and why not
+  sys0 doctor [--fix]       check what this machine can run, and why not
+                            (--fix starts the container engine if it's stopped)
   sys0 install|uninstall    add or remove the background service
   sys0 start|stop|restart   control the background service
   sys0 version              print the version
@@ -87,6 +92,7 @@ func main() {
 	noBrowser := fs.Bool("no-browser", false, "do not open a browser")
 	openInternet := fs.Bool("open-internet", false, "let apps from other people's pools use this machine's internet freely")
 	noAutoUpdate := fs.Bool("no-auto-update", false, "don't install new versions automatically")
+	fix := fs.Bool("fix", false, "doctor: start the container engine if it's stopped")
 	noCrashReports := fs.Bool("no-crash-reports", false, "keep crash reports on this machine")
 	listenAddr := fs.String("listen", ":3128", "egress-proxy: proxy address")
 	allow := fs.String("allow", "", "egress-proxy: hosts apps may reach, comma-separated")
@@ -156,7 +162,7 @@ func main() {
 		err = svc.RunManaged()
 	case "update":
 		err = updateNow(updater(*dataDir, log), svc)
-	case "auto-update", "crash-reports":
+	case "auto-update", "crash-reports", "keep-engines-running":
 		err = setSwitch(*dataDir, cmd, positional)
 	case "egress-proxy":
 		err = egressProxy(*listenAddr, *allow, forwards)
@@ -172,7 +178,7 @@ func main() {
 	case "status":
 		status(*dataDir, svc)
 	case "doctor":
-		doctor(*dataDir)
+		doctor(*dataDir, *fix)
 	case "version", "--version":
 		fmt.Println("sys0", version.String())
 	case "help", "-h", "--help":
@@ -268,15 +274,18 @@ func setSwitch(dataDir, name string, args []string) error {
 		return err
 	}
 	off := args[0] == "off"
-	if name == "auto-update" {
+	switch name {
+	case "auto-update":
 		cfg.NoAutoUpdate = off
-	} else {
+	case "crash-reports":
 		cfg.NoCrashReports = off
+	default:
+		cfg.KeepEngines = args[0]
 	}
 	if err := agent.SaveConfig(dataDir, cfg); err != nil {
 		return err
 	}
-	fmt.Printf("%s %s. Restart sys0 to apply: sys0 restart\n", map[string]string{"auto-update": "Automatic updates are", "crash-reports": "Crash reports are"}[name], args[0])
+	fmt.Printf("%s %s. Restart sys0 to apply: sys0 restart\n", map[string]string{"auto-update": "Automatic updates are", "crash-reports": "Crash reports are", "keep-engines-running": "Keeping container engines running is"}[name], args[0])
 	return nil
 }
 
@@ -337,8 +346,15 @@ func status(dataDir string, svc *cli.Service) {
 }
 
 // doctor prints what sys0 finds on this machine, as the service sees it.
-func doctor(dataDir string) {
+func doctor(dataDir string, fix bool) {
 	cfg, _ := agent.LoadConfig(dataDir)
+	if fix && len(engines.Installed()) > 0 {
+		fmt.Println("Checking the container engine, and starting it if it's stopped (this can take a few minutes)…")
+		sup := &engines.Supervisor{Log: slog.New(slog.NewTextHandler(os.Stderr, nil))}
+		if p := sup.Once(context.Background()); p != "" {
+			fmt.Println("  still a problem:", p)
+		}
+	}
 	r := (&resources.Sampler{DataDir: dataDir}).Sample(cfg.Trust == protocol.TrustOwner)
 	fmt.Println("sys0", version.Version, "on", r.OS, r.Arch)
 	fmt.Println("  apps it can run:", strings.Join(append([]string{}, r.Runtimes...), ", "))
@@ -346,6 +362,9 @@ func doctor(dataDir string) {
 		if p, err := exec.LookPath(rt); err == nil {
 			fmt.Printf("  %-9s %s\n", rt+":", p)
 		}
+	}
+	for _, e := range engines.Installed() {
+		fmt.Printf("  engine:   %s (kept running: %v)\n", e.Name, cfg.KeepsEngines())
 	}
 	if h := os.Getenv("DOCKER_HOST"); h != "" {
 		fmt.Println("  DOCKER_HOST:", h)
