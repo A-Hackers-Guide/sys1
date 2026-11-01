@@ -122,10 +122,10 @@ func TestValidRejectsForgedReports(t *testing.T) {
 		t.Fatal("good report rejected")
 	}
 	for name, mutate := range map[string]func(*Report){
-		"app":       func(r *Report) { r.App = "evil" },
-		"link":      func(r *Report) { r.Frames = []string{"[Download_fix](//evil.example/x) (a.go:1)"} },
-		"frame":     func(r *Report) { r.Frames = []string{"my password is hunter2"} },
-		"version":   func(r *Report) { r.Version = "1.0 see http://x" },
+		"app":     func(r *Report) { r.App = "evil" },
+		"link":    func(r *Report) { r.Frames = []string{"[Download_fix](//evil.example/x) (a.go:1)"} },
+		"frame":   func(r *Report) { r.Frames = []string{"my password is hunter2"} },
+		"version": func(r *Report) { r.Version = "1.0 see http://x" },
 	} {
 		r := good
 		r.Frames = append([]string(nil), good.Frames...)
