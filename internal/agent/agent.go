@@ -48,12 +48,18 @@ type Agent struct {
 	log     *slog.Logger
 
 	crashesSent time.Time
-	sampler     *resources.Sampler
-	engines     *engines.Supervisor
-	updateNow   int
-	c           *client
-	outbox      *journal.Journal
-	st          *agentStorage
+	hostTried   string // the cluster code last tried, so an order runs once
+	hostProblem string
+	// Host runs the sys1 commands that make this machine a cluster member;
+	// nil when it can't (no sys1 beside sys0, or no right to install a
+	// service). Tests replace it.
+	Host      func(ctx context.Context, args ...string) error
+	sampler   *resources.Sampler
+	engines   *engines.Supervisor
+	updateNow int
+	c         *client
+	outbox    *journal.Journal
+	st        *agentStorage
 
 	mu       sync.Mutex
 	running  map[string]*taskRun
@@ -77,6 +83,7 @@ func New(dataDir string, cfg Config, log *slog.Logger) (*Agent, error) {
 	a := &Agent{
 		cfg:      cfg,
 		dataDir:  dataDir,
+		Host:     defaultHost(),
 		log:      log,
 		c:        newClient(cfg.Addrs(), cfg.Fingerprint),
 		running:  map[string]*taskRun{},
@@ -195,6 +202,11 @@ func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, erro
 		res.Problems = append([]string{p}, res.Problems...)
 	}
 	a.mu.Lock()
+	res.Hosting = a.cfg.Hosting
+	res.CanHost = res.Hosting == "" && !a.cfg.NoHosting && a.cfg.Trust == protocol.TrustOwner && a.Host != nil
+	if a.hostProblem != "" {
+		res.Problems = append([]string{a.hostProblem}, res.Problems...)
+	}
 	a.last = res
 	req := protocol.HeartbeatRequest{Resources: res, Version: version.Version, Storage: a.st.report()}
 	for id, r := range a.running {
@@ -213,6 +225,10 @@ func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, erro
 func (a *Agent) apply(ctx context.Context, resp protocol.HeartbeatResponse) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if o := resp.Host; o != nil && a.cfg.Hosting == "" && !a.cfg.NoHosting && a.Host != nil && o.Code != a.hostTried {
+		a.hostTried = o.Code
+		go a.host(ctx, *o)
+	}
 	if resp.UpdateNow != a.updateNow {
 		if a.updateNow != 0 && a.OnUpdateNow != nil {
 			go a.OnUpdateNow()

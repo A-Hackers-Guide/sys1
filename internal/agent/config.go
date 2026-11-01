@@ -35,6 +35,10 @@ type Config struct {
 	// container engine (Docker Desktop…) and keeps it running. Empty means
 	// on for your own machines and off for machines you lend.
 	KeepEngines string `json:"keepEngines,omitempty"`
+	// NoHosting keeps the pool from making this machine a standby node or
+	// a witness. Hosting is the role it took on.
+	NoHosting bool   `json:"noHosting,omitempty"`
+	Hosting   string `json:"hosting,omitempty"`
 }
 
 // KeepsEngines reports whether sys0 keeps this machine's container engine

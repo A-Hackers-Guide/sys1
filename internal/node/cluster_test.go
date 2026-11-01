@@ -92,7 +92,10 @@ func TestClusterSurvivesLeaderLoss(t *testing.T) {
 		}
 		nodes = append(nodes, startClusterNode(t, dir, api, raftAddr))
 		want := len(nodes)
-		waitTrue(t, 20*time.Second, name+" to become a voter", func() bool {
+		if want%2 == 0 {
+			want-- // voters stay odd: the second node is a copy without a vote
+		}
+		waitTrue(t, 20*time.Second, name+" to join with the right votes", func() bool {
 			voters := 0
 			for _, m := range a.n.ClusterStatus().Members {
 				if m.Voter {

@@ -51,7 +51,7 @@ A single node is a single point of failure: if its machine dies, the pool stops 
 | Nodes | Survives losing | Notes |
 |---|---|---|
 | 1 | nothing | The default. Back up the data directory. |
-| 2 | nothing | Raft needs a majority: with one of two gone, the other can't safely lead. Only useful as a hot copy. |
+| 2 | nothing | Raft needs a majority, and with one of two gone the other can't safely lead, so only one of the two votes and the other is a live copy. |
 | 2 + a witness | any 1 | **The usual home setup**: your main computer, a standby, and a witness on any third machine. |
 | **3** | **any 1** | **Recommended** when you have three computers that can each run the pool. |
 | 5 | any 2 | For larger pools. |
@@ -77,7 +77,18 @@ To run nodes as services: `sys1 install --cluster`.
 
 ### A standby and a witness
 
-Most pools have one computer that is always on. To keep the pool running when it isn't, add a **standby** (a second full node) and a **witness**:
+Most pools have one computer that is always on. To keep the pool running when it isn't, it needs a **standby** (a second full node) and a **witness**.
+
+**The easy way:** on the dashboard, under **Nodes**, click **Protect this pool**. The node turns cluster mode on (restarting once), then picks two of your own machines to be the standby and the witness, and they set themselves up:
+
+- Only your machines (owner trust) that have **sys1 installed beside sys0** and run sys0 as a system service (root, or a Windows service), are on mains power, and have been in the pool for 10 minutes.
+- The one with the most memory becomes the standby, since it may lead the pool; any other one becomes the witness.
+- A machine has 15 minutes to join. If it can't, the dashboard shows why and another machine is asked.
+- `sys0 standby off` on a machine keeps it out. To stop the node picking at all, `POST /api/cluster/auto-standby {"on": false}`.
+
+**Votes stay odd.** Every new node joins without a vote, catches up, and then gets one only if that keeps the number of voters odd. Two voters survive no failure at all (either one going down stops the other), so a standby alone is a live copy without a vote until a witness joins too. This applies to clusters you set up by hand as well.
+
+**By hand:**
 
 ```bash
 # on the standby

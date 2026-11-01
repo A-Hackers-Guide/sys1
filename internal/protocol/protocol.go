@@ -64,6 +64,12 @@ type Resources struct {
 	Problems []string `json:"problems,omitempty"`
 	// Updates is "automatic", or why this install doesn't update itself.
 	Updates string `json:"updates,omitempty"`
+	// CanHost: sys1 is installed beside sys0 and sys0 may install services,
+	// so the pool can make this machine a standby node or a witness.
+	CanHost bool `json:"canHost,omitempty"`
+	// Hosting is the cluster role this machine took on: "standby" or
+	// "witness".
+	Hosting string `json:"hosting,omitempty"`
 }
 
 // GPU is one graphics or AI accelerator.
@@ -486,7 +492,21 @@ type HeartbeatResponse struct {
 	// Hurry asks for the next heartbeat in about a second, because
 	// storage work is in flight.
 	Hurry bool `json:"hurry,omitempty"`
+	// Host asks one of the owner's machines to run a standby node or a
+	// witness for the pool (see docs/CLUSTER.md).
+	Host *HostOrder `json:"host,omitempty"`
 }
+
+// HostOrder makes a machine a cluster member.
+type HostOrder struct {
+	Role string `json:"role"` // RoleStandby or RoleWitness
+	Code string `json:"code"` // the cluster code to join with
+}
+
+const (
+	RoleStandby = "standby"
+	RoleWitness = "witness"
+)
 
 // StorageReport is a machine's share of pooled storage, plus the outcome of
 // storage work since its last heartbeat.

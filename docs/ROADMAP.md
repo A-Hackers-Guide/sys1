@@ -98,6 +98,7 @@ Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cy
 
 ## ✅ v1.0: Stable (done)
 
+- Protect this pool: the node picks a standby and a witness from your own machines, which set themselves up; votes stay odd so a pair of nodes can't stall
 - Standby nodes: a second node takes over while the main node is down and hands back when it returns and is steady, with a witness on any third machine so there's never two nodes in charge (#39)
 - From 1.0 on, versions follow semantic versioning: every 1.x node and client work together, and upgrades from earlier releases are tested in CI on every change
 
@@ -106,7 +107,6 @@ Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cy
 - A full security review of the client sandbox, TLS pinning and pooled-storage crypto
 - Every doc checked against the code
 - Package repositories: F-Droid, and signed apt and dnf repositories on GitHub Pages (#6, needs the project's signing key)
-- Automatic standby choice: sys1 picks a standby and a witness from your own machines
 
 ## 🧩 v1.1: Integrations
 

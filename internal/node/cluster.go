@@ -73,6 +73,7 @@ type cluster struct {
 	leaderSince atomic.Int64
 	peerMu      sync.Mutex
 	peerFailed  map[string]time.Time
+	balanceMu   sync.Mutex
 }
 
 // entry wraps an event in the Raft log.
@@ -444,13 +445,16 @@ func (n *Node) handleClusterAdd(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing node id or address", http.StatusBadRequest)
 		return
 	}
-	if err := n.cl.r.AddVoter(raft.ServerID(req.ID), raft.ServerAddress(req.RaftAddr), 0, 10*time.Second).Error(); err != nil {
+	// Every node joins without a vote and catches up; balanceVoters then
+	// gives it one if that keeps the number of voters odd.
+	if err := n.cl.r.AddNonvoter(raft.ServerID(req.ID), raft.ServerAddress(req.RaftAddr), 0, 10*time.Second).Error(); err != nil {
 		http.Error(w, "could not add the node: "+err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 	n.mu.Lock()
 	n.proposeLocked(entry{Member: &Member{ID: req.ID, Name: req.Name, RaftAddr: req.RaftAddr, APIAddrs: req.APIAddrs, Witness: req.Witness}})
 	n.mu.Unlock()
+	n.balanceVoters()
 	n.saveJoinCode()
 	n.log.Info("cluster: node joined", "name", req.Name)
 	w.WriteHeader(http.StatusOK)
@@ -603,13 +607,14 @@ func (n *Node) LeaveCluster(id string) error {
 
 // ClusterStatus describes the cluster for the dashboard.
 type ClusterStatus struct {
-	Enabled   bool           `json:"enabled"`
-	Leading   bool           `json:"leading"`
-	Witness   bool           `json:"witness"`   // this node only votes
-	Preferred string         `json:"preferred"` // member ID that leads when it can
-	Self      string         `json:"self"`
-	Leader    string         `json:"leader"`
-	Members   []MemberStatus `json:"members"`
+	Enabled     bool           `json:"enabled"`
+	Leading     bool           `json:"leading"`
+	Witness     bool           `json:"witness"`     // this node only votes
+	AutoStandby bool           `json:"autoStandby"` // picks its own standby and witness
+	Preferred   string         `json:"preferred"`   // member ID that leads when it can
+	Self        string         `json:"self"`
+	Leader      string         `json:"leader"`
+	Members     []MemberStatus `json:"members"`
 }
 
 type MemberStatus struct {
@@ -633,6 +638,7 @@ func (n *Node) ClusterStatus() ClusterStatus {
 	}
 	n.mu.Lock()
 	st.Preferred = n.cl.prefer
+	st.AutoStandby = !n.settings.NoAutoStandby
 	for _, m := range n.cl.members {
 		st.Members = append(st.Members, MemberStatus{Member: m, Voter: voters[m.ID], Leader: m.ID == st.Leader})
 	}
