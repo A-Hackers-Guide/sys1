@@ -198,7 +198,11 @@ jobs:
     if: inputs.publish
     needs: [macos-pkg, windows-msi, appimage, snap, freebsd, android, ios]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write # Sigstore keyless signing of checksums.txt
     steps:
+      - uses: sigstore/cosign-installer@v3
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
       - name: Upload to the release and refresh checksums.txt
@@ -206,6 +210,13 @@ jobs:
           rm -f out/sys0-x86_64 # the Android emulator test's helper, not a download
           gh release upload "$TAG" -R ${{ github.repository }} --clobber out/*
           mkdir all && gh release download "$TAG" -R ${{ github.repository }} -D all
-          (cd all && rm -f checksums.txt && sha256sum * | sort -k2) > checksums.txt
-          gh release upload "$TAG" -R ${{ github.repository }} --clobber checksums.txt
+          (cd all && rm -f checksums.txt checksums.txt.sigstore.json && sha256sum * | sort -k2) > checksums.txt
           wc -l checksums.txt
+          # sys0 and sys1 update themselves only to releases whose checksums
+          # carry this signature: made by this workflow on a version tag,
+          # recorded in Sigstore's public log (no signing key to leak).
+          cosign sign-blob --yes --new-bundle-format --bundle checksums.txt.sigstore.json checksums.txt
+          cosign verify-blob --bundle checksums.txt.sigstore.json \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/packages.yml@refs/tags/$TAG" checksums.txt
+          gh release upload "$TAG" -R ${{ github.repository }} --clobber checksums.txt checksums.txt.sigstore.json
