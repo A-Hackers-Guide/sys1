@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -110,6 +111,9 @@ func main() {
 		}
 	}
 
+	if cmd == "install" && *dataDir == paths.DataDir("sys0") {
+		adoptUserSetup(dataDir)
+	}
 	// Containers and services need an absolute path, whatever was typed.
 	if abs, err := filepath.Abs(*dataDir); err == nil {
 		*dataDir = abs
@@ -224,6 +228,32 @@ func runAgent(ctx context.Context, dataDir string, log *slog.Logger) error {
 		}
 		return u.Run(ctx, !cli.Interactive(), a.Run)
 	}
+}
+
+// adoptUserSetup is for `sudo sys0 install` on a Mac that already runs
+// sys0 for one person: the system service takes over that person's setup
+// (same join, same data) and their own background agent is removed, so
+// only one sys0 runs. System services aren't subject to macOS's Local
+// Network privacy, which otherwise asks again after every update.
+func adoptUserSetup(dataDir *string) {
+	user := os.Getenv("SUDO_USER")
+	if runtime.GOOS != "darwin" || os.Geteuid() != 0 || user == "" || user == "root" {
+		return
+	}
+	if _, err := os.Stat(filepath.Join(*dataDir, "config.json")); err == nil {
+		return // the system service already has its own setup
+	}
+	home := filepath.Join("/Users", user)
+	userDir := filepath.Join(home, "Library", "Application Support", "sys0")
+	if _, err := os.Stat(filepath.Join(userDir, "config.json")); err != nil {
+		return
+	}
+	*dataDir = userDir
+	if uid, err := exec.Command("id", "-u", user).Output(); err == nil {
+		exec.Command("launchctl", "bootout", "gui/"+strings.TrimSpace(string(uid))+"/sys0").Run()
+	}
+	os.Remove(filepath.Join(home, "Library", "LaunchAgents", "sys0.plist"))
+	fmt.Println("Moving", user+"'s sys0 to a system service (same pool, same data).")
 }
 
 // captureCrashes queues the report of the previous run's crash, if any,

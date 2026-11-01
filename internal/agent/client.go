@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"runtime"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
@@ -61,6 +65,7 @@ func (c *client) do(mk func(base string) (*http.Request, error)) (*http.Response
 	addrs, start := c.addrs, c.cur
 	c.mu.Unlock()
 	var lastErr error
+	var errs []addrErr
 	for k := 0; k < len(addrs); k++ {
 		i := (start + k) % len(addrs)
 		req, err := mk("https://" + addrs[i])
@@ -88,13 +93,73 @@ func (c *client) do(mk func(base string) (*http.Request, error)) (*http.Response
 			return nil, err
 		}
 		lastErr = err
+		errs = append(errs, addrErr{addrs[i], err})
 	}
 	if se, ok := lastErr.(*StatusError); ok {
 		// Every node answered "standby": an election is under way.
 		return nil, se
 	}
+	if len(errs) > 1 {
+		return nil, &unreachable{errs}
+	}
 	return nil, lastErr
 }
+
+type addrErr struct {
+	addr string
+	err  error
+}
+
+// unreachable says what went wrong at every address, not only the last,
+// with a hint when the operating system is in the way.
+type unreachable struct{ errs []addrErr }
+
+func (u *unreachable) Error() string {
+	var parts []string
+	for _, e := range u.errs {
+		parts = append(parts, e.addr+": "+shortNetErr(e.err))
+	}
+	msg := strings.Join(parts, "; ")
+	if h := netHint(u.errs); h != "" {
+		msg += " (" + h + ")"
+	}
+	return msg
+}
+
+func (u *unreachable) Unwrap() []error {
+	out := make([]error, len(u.errs))
+	for i, e := range u.errs {
+		out[i] = e.err
+	}
+	return out
+}
+
+func shortNetErr(err error) string {
+	var op *net.OpError
+	if errors.As(err, &op) && op.Err != nil {
+		return op.Err.Error()
+	}
+	return err.Error()
+}
+
+// netHint explains a local-network address that can't be reached while
+// the machine is otherwise online: on macOS that's Local Network privacy.
+func netHint(errs []addrErr) string {
+	if runtime.GOOS != "darwin" {
+		return ""
+	}
+	for _, e := range errs {
+		host, _, _ := net.SplitHostPort(e.addr)
+		ip := net.ParseIP(host)
+		if ip != nil && ip.IsPrivate() && (errors.Is(e.err, syscall.EHOSTUNREACH) || errors.Is(e.err, syscall.ENETUNREACH)) {
+			return MacLocalNetworkHint
+		}
+	}
+	return ""
+}
+
+// MacLocalNetworkHint is shown when macOS keeps sys0 off the local network.
+const MacLocalNetworkHint = "macOS is keeping sys0 off your local network: allow sys0 under System Settings → Privacy & Security → Local Network, or run it as a system service, which macOS doesn't restrict: sudo sys0 install"
 
 func (c *client) post(ctx context.Context, path string, in, out any) error {
 	body, err := json.Marshal(in)

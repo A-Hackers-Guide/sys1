@@ -20,6 +20,16 @@ sys1 is written in Go with no C dependencies (`CGO_ENABLED=0`, except the iOS bu
 
 "Builds" means the binary compiles and the portable parts (networking, journal, scheduler) are exercised by the shared test suite. Platform-specific behaviour is verified on the platforms CI runs on: Linux, macOS and Windows.
 
+## macOS: run sys0 as a system service
+
+macOS asks whether each program may use the **local network**, and asks again whenever the program changes, which an update does. Until someone clicks **Allow** on that Mac, sys0 can't reach a node on your network, and the log says "macOS is keeping sys0 off your local network". System services aren't asked. So on a Mac, after joining, run once:
+
+```bash
+sudo sys0 install
+```
+
+It moves your existing setup (same pool, same data) to a system service and removes the per-user one. sys0 still starts Docker Desktop in the signed-in person's session.
+
 ## Running apps on each OS
 
 Most marketplace packages are **containers**:

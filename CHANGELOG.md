@@ -2,6 +2,13 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.9.1] - 2026-11-01
+
+### Fixed
+
+- When a node can't be reached, the log now says what went wrong at every address, not only the last one, and on a Mac it recognizes **Local Network privacy** blocking sys0 and says how to fix it.
+- On a Mac, `sudo sys0 install` moves an existing per-user sys0 to a system service, keeping its pool and data. System services aren't subject to Local Network privacy, which otherwise asks again after every update.
+
 ## [0.9.0] - 2026-11-01
 
 Real machines, datacenter basics: Docker that was installed but not seen, installs that never updated, container engines and apps kept running, metrics.
@@ -12,6 +19,7 @@ Real machines, datacenter basics: Docker that was installed but not seen, instal
 - **Installs that couldn't replace their own binary never updated**, for example the macOS installer's `/usr/local/bin` with sys0 running as you. Updates now go to the data folder, and the app switches to that copy when it starts (with the same rollback).
 - **Homebrew, Scoop and other package-manager installs never updated** unless someone ran the package manager. They now update the same way, beside the package manager's copy, which wins again once it's newer.
 - **Docker counted as working when Docker Desktop wasn't running**: newer Docker CLIs exit successfully without an engine, so sys0 now needs the engine to answer.
+
 
 ### Added
 
