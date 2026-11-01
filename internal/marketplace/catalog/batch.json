@@ -1,0 +1,24 @@
+{
+  "name": "batch",
+  "version": "1.0.0",
+  "title": "Batch job",
+  "description": "Splits work into pieces and spreads them over the pool: rendering frames, encoding videos, crunching data. Each piece gets SYS1_SHARD_INDEX and SYS1_SHARD_COUNT and writes its results to /output; collect them all into one folder when it's done.",
+  "category": "Compute",
+  "icon": "🧮",
+  "author": "sys1",
+  "inputs": [
+    {"name": "IMAGE", "label": "Container image", "default": "alpine:3"},
+    {"name": "COMMAND", "label": "Command each piece runs (sh)", "default": "echo \"piece $SYS1_SHARD_INDEX of $SYS1_SHARD_COUNT ran on $(hostname)\" > /output/result.txt"},
+    {"name": "SHARDS", "label": "Number of pieces", "default": "8"}
+  ],
+  "run": {
+    "kind": "container",
+    "image": "${IMAGE}",
+    "command": ["sh", "-c", "${COMMAND}"],
+    "network": false,
+    "volumes": ["/output"],
+    "cpu": 1,
+    "memoryMB": 512,
+    "shards": 8
+  }
+}

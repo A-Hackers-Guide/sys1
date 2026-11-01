@@ -187,6 +187,21 @@
   </form>
 </dialog>
 
+<dialog id="collect">
+  <form method="dialog" id="collect-form">
+    <h2>Collect results</h2>
+    <p class="muted" id="cl-what"></p>
+    <label class="field">To machine <select id="cl-machine"></select></label>
+    <label class="field">Into a new folder <input id="cl-dest" required></label>
+    <p class="muted small">Each piece's output goes into its own subfolder: shard-0000, shard-0001, …</p>
+    <p id="cl-error" class="error"></p>
+    <div class="actions">
+      <button value="cancel" class="ghost">Cancel</button>
+      <button id="cl-go" value="default" class="primary">Collect</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="output">
   <form method="dialog">
     <h2 id="output-title"></h2>

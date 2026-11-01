@@ -114,7 +114,9 @@ Heartbeats carry a `storage` report (`quotaBytes`, `usedBytes`, `chunks`, plus `
   "diskTotal": 512110190592, "diskFree": 201863462912,
   "gpus": ["NVIDIA GeForce RTX 3060"],
   "onBattery": false,
-  "runtimes": ["docker", "exec"]
+  "runtimes": ["docker", "exec"],
+  "addr": "192.168.1.20",
+  "gpuInfo": [{ "vendor": "nvidia", "name": "NVIDIA GeForce RTX 3060", "vramMB": 12288, "freeMB": 11000 }]
 }
 ```
 
@@ -137,7 +139,11 @@ Heartbeats carry a `storage` report (`quotaBytes`, `usedBytes`, `chunks`, plus `
   "memoryMB": 2048,
   "gpu": true,
   "service": true,
-  "os": ["linux", "darwin"]
+  "os": ["linux", "darwin"],
+  "minVramMB": 8000,
+  "shards": 0,
+  "ownerOnly": false,
+  "group": { "workers": 2, "peerPort": 50052, "worker": { …TaskSpec… } }
 }
 ```
 

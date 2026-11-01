@@ -46,11 +46,14 @@ Still open. Most need an account, certificate or key only the maintainers can ge
 
 Next for storage: erasure coding (less space than full copies), block-level deduplication within large files, direct machine-to-machine transfers (with v0.5), and catalog recovery after losing the node (#27).
 
-## 🧠 v0.4: AI and batch
+## ✅ v0.4: AI and batch (done)
 
-- Sharded AI inference across machines (pipeline-parallel, in the style of exo/petals)
-- Batch jobs that split into chunks across the pool (rendering, encoding, compiling)
-- GPU scheduling by VRAM; NVIDIA, AMD, Apple, Intel
+- ✅ Batch jobs: split into N pieces, retried independently, results collected into one folder
+- ✅ Groups: cooperating workers on different machines with automatic peer discovery and restarts
+- ✅ One AI model split across machines (llama.cpp RPC), proven in CI on amd64 and arm64
+- ✅ GPU inventory for NVIDIA, AMD, Intel and Apple with memory; scheduling by free GPU memory
+
+Next for AI: GPU builds of the llama.cpp image (CUDA, Vulkan), and more group packages.
 
 ## 🌍 v0.5: Internet-scale pools
 

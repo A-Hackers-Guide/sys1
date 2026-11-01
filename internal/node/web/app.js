@@ -117,8 +117,8 @@ function renderOverview(s) {
     meter("Memory available", t.memFree, t.memTotal, `${bytes(t.memFree)} / ${bytes(t.memTotal)}`),
     meter("Storage available", t.diskFree, t.diskTotal, `${bytes(t.diskFree)} / ${bytes(t.diskTotal)}`),
     h("p", { class: "muted small" }, "Available means unused right now. sys0 runs at the lowest priority, so the pool only ever uses what each machine's owner isn't using."));
-  const recent = (s.tasks || []).slice(0, 6);
-  fill($("#recent"), recent.length ? recent.map(taskRow) : h("div", { class: "empty" },
+  const recent = [...(s.jobs || []).map(jobRow), ...(s.tasks || []).map(taskRow)].slice(0, 6);
+  fill($("#recent"), recent.length ? recent : h("div", { class: "empty" },
     h("div", { class: "big" }, "🌱"), h("p", {}, "Nothing deployed yet."),
     h("button", { class: "primary", onclick: () => show("market") }, "Browse the marketplace")));
 }
@@ -188,9 +188,55 @@ function showOutput(t) {
   $("#output").showModal();
 }
 
+function jobRow(j) {
+  const p = j.progress;
+  const finished = p.Running + p.Waiting === 0;
+  const group = j.kind === "group";
+  const label = group
+    ? (p.Running === p.Total ? "Running" : p.Failed ? "Problem" : "Starting")
+    : (finished ? (p.Failed ? `Finished, ${p.Failed} failed` : "Finished") : `${p.Done} of ${p.Total} done`);
+  const cls = p.Failed ? "bad" : finished || (group && p.Running === p.Total) ? "ok" : "accent";
+  return h("div", { class: "item" },
+    h("div", { class: "emoji" }, group ? "🧩" : "🧮"),
+    h("div", { class: "grow" },
+      h("div", { class: "title" }, j.title),
+      h("div", { class: "msg" }, group
+        ? `Group of ${j.shards} worker${j.shards === 1 ? "" : "s"} plus a head, on ${j.machines} machine${j.machines === 1 ? "" : "s"}`
+        : `${j.shards} pieces · ${p.Running} running on ${j.machines} machine${j.machines === 1 ? "" : "s"} · ${p.Waiting} waiting` + (p.Saved ? ` · ${p.Saved} with saved output` : "")),
+      !group && h("div", { class: "bar small" }, h("i", { style: { width: (p.Total ? (p.Done / p.Total) * 100 : 0) + "%" } }))),
+    h("span", { class: "chip " + cls }, label),
+    !group && p.Saved > 0 && h("button", { class: "ghost", onclick: () => openCollect(j) }, "Collect results"),
+    h("button", {
+      class: "ghost" + (finished ? "" : " danger"),
+      onclick: async () => { try { await api(`/api/jobs/${j.id}/stop`, {}); refresh(); } catch (e) { toast(e.message); } },
+    }, finished ? "Clear" : "Stop"));
+}
+
+async function openCollect(j) {
+  if (!storageState) await loadStorage();
+  $("#cl-what").textContent = `${j.title}: ${j.progress.Saved} piece(s) with saved output`;
+  const owners = (storageState?.machines || []).filter((m) => m.owner && m.online);
+  fill($("#cl-machine"), owners.map((m) => h("option", { value: m.id }, m.name)));
+  $("#cl-dest").value = "";
+  $("#cl-dest").placeholder = "/home/you/results or C:\\Users\\you\\results";
+  $("#cl-error").textContent = "";
+  $("#collect").dataset.job = j.id;
+  $("#collect").showModal();
+}
+
+$("#cl-go").addEventListener("click", async (e) => {
+  e.preventDefault();
+  if (!$("#collect-form").reportValidity()) return;
+  try {
+    const r = await api(`/api/jobs/${$("#collect").dataset.job}/collect`, { agentId: $("#cl-machine").value, dest: $("#cl-dest").value.trim() });
+    $("#collect").close();
+    toast(`Collecting ${r.restores} piece(s). Progress is on the Storage tab.`);
+  } catch (err) { $("#cl-error").textContent = err.message; }
+});
+
 function renderApps(s) {
-  const list = s.tasks || [];
-  fill($("#apps"), list.length ? list.map(taskRow) : h("div", { class: "panel empty" },
+  const list = [...(s.jobs || []).map(jobRow), ...(s.tasks || []).map(taskRow)];
+  fill($("#apps"), list.length ? list : h("div", { class: "panel empty" },
     h("div", { class: "big" }, "📭"), h("p", {}, "No apps yet. Deploy something from the marketplace."),
     h("button", { class: "primary", onclick: () => show("market") }, "Open marketplace")));
 }

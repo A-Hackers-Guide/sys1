@@ -2,6 +2,23 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.4.0] - 2026-11-01
+
+AI and batch.
+
+### Added
+
+- **Batch jobs**: `shards: N` splits a package into N independently placed and retried pieces with `SYS1_SHARD_INDEX`/`SYS1_SHARD_COUNT`; **Collect results** restores every piece's output into one folder. New built-in "Batch job" package (any command, any image).
+- **Groups**: a head plus N workers, each on a different machine; the head starts when all workers run, gets `SYS1_PEERS`, and restarts if a worker moves.
+- **AI model split across machines** (`llama-distributed`): llama.cpp RPC workers plus a head serving an OpenAI-compatible API. sys1 builds `ghcr.io/a-hackers-guide/llama-rpc` (amd64, arm64) because the official images lack RPC; CI proves a model really runs split across two workers.
+- **GPU inventory** with memory for NVIDIA, AMD, Intel and Apple; `minVramMB` scheduling; per-vendor GPU access for containers.
+- `ownerOnly` packages, enforced by the node and sys0.
+- docs/BATCH.md.
+
+### Changed
+
+- sys1 is never distributed through the App Store, on any Apple device.
+
 ## [0.3.0] - 2026-11-01
 
 Pooled storage.

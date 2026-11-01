@@ -41,6 +41,15 @@ A package is one JSON file: a description for humans plus a spec for machines. A
 | `inputs` | | Values asked for at deploy time (below). |
 | `run` | ✅ | A [TaskSpec](PROTOCOL.md#taskspec). |
 
+### Scaling and hardware
+
+| Field in `run` | Meaning |
+|---|---|
+| `shards` | A [batch job](BATCH.md) of this many pieces. An input named `SHARDS` lets people choose at deploy time. |
+| `group` | A [group](BATCH.md#groups): a head plus workers on different machines. An input named `WORKERS` overrides the worker count. |
+| `gpu`, `minVramMB` | Use a GPU; require free GPU memory ([GPUs](BATCH.md#gpus)). |
+| `ownerOnly` | Never run on machines lent by other people. Use it for anything that opens an unauthenticated network service. |
+
 ### Volumes
 
 - `run.volumes`: app data kept in [pooled storage](STORAGE.md). Snapshotted every `snapshotSeconds` (default 60) and on stop, and restored wherever the app moves. Use it for settings and databases.

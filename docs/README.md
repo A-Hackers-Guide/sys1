@@ -14,6 +14,7 @@ Start with **[Getting started](GETTING-STARTED.md)** if you just want to use sys
 - [Architecture](ARCHITECTURE.md): components, data flow, code map
 - [Reliability](RELIABILITY.md): fast save, watchdog, failover, and the exact guarantees
 - [Storage](STORAGE.md): pooled, encrypted, replicated storage for app data and backups
+- [Batch jobs, groups and GPUs](BATCH.md): splitting work and AI models across machines
 - [Security model](SECURITY-MODEL.md): trust levels, sandboxing, threat model
 - [Protocol](PROTOCOL.md): every message between sys0 and sys1
 
