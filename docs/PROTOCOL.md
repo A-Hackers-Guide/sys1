@@ -46,7 +46,7 @@ Unknown or removed machines get `401`.
 ```json
 {
   "resources": { …Resources… },
-  "running": [ { "id": "task id", "attempt": 2 } ],
+  "running": [ { "id": "task id", "attempt": 2, "screen": { "port": 41234, "password": "8 chars" } } ],
   "version": "0.1.0"
 }
 ```
@@ -135,7 +135,7 @@ A standby node answers every other client request with **421 Misdirected Request
 
 ```json
 {
-  "kind": "container | exec",
+  "kind": "container | exec | vm",
   "image": "jellyfin/jellyfin:latest",
   "command": ["arg", "…"],
   "env": { "NAME": "value" },
@@ -154,7 +154,9 @@ A standby node answers every other client request with **421 Misdirected Request
   "ownerOnly": false,
   "verify": 0,
   "egress": ["api.example.com"],
-  "group": { "workers": 2, "peerPort": 50052, "worker": { …TaskSpec… } }
+  "group": { "workers": 2, "peerPort": 50052, "worker": { …TaskSpec… } },
+  "shmMB": 0,
+  "vm": { "image": "https://…", "sha256": "…", "arch": "x86_64", "cpus": 2, "diskGB": 20, "screen": true, "cloudInit": "…" }
 }
 ```
 

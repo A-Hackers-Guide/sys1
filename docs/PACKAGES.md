@@ -50,6 +50,7 @@ A package is one JSON file: a description for humans plus a spec for machines. A
 | `gpu`, `minVramMB` | Use a GPU; require free GPU memory ([GPUs](BATCH.md#gpus)). |
 | `ownerOnly` | Never run on machines lent by other people. Use it for anything that opens an unauthenticated network service. |
 | `verify` | Batch jobs: run each piece on this many machines and accept output only when they agree ([details](BATCH.md#checking-results-on-several-machines)). |
+| `shmMB` | Shared memory for containers; desktops and browsers need around 1024. |
 | `egress` | Hosts the app may reach over HTTP(S) on machines lent by others, like `["api.example.com", "*.cdn.example.com"]`. Leave it out if the app needs no outbound internet; `["*"]` if it needs unrestricted internet (it then runs on lent machines only where the lender allows). |
 
 ### Volumes
@@ -71,6 +72,8 @@ Native (`exec`) programs find their pooled volumes in `$SYS1_VOLUME_0`, `$SYS1_V
 `${NAME}` anywhere in `run.image`, `run.command` or `run.env` values is replaced with the value. `secret` inputs are masked in the dashboard. The spec is validated **after** substitution, so an input cannot smuggle options into the container runtime.
 
 ### Kinds
+
+- **`vm`**: a whole operating system under QEMU, on owner machines. See [Virtual machines](VMS.md).
 
 - **`container`**: runs anywhere with Docker or Podman. Linux containers run natively on Linux and in a lightweight VM on macOS and Windows (Docker Desktop / Podman machine). **Prefer this.**
 - **`exec`**: a native program. Set `run.os` to the OSes it supports (`linux`, `darwin`, `windows`, `freebsd`, `any`…). Runs **only on owner machines**.

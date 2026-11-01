@@ -41,7 +41,7 @@ It comes as **two apps, everywhere**:
                  └─────────┘
 ```
 
-## What it does today (v0.5)
+## What it does today (v0.6)
 
 - ✅ **Joins machines in one paste.** The node shows a join code; paste it into the sys0 installer.
 - ✅ **Lowest priority on every OS.** `nice 19` + idle I/O on Linux, background QoS on macOS, `IDLE_PRIORITY_CLASS` + background mode on Windows, `nice 19` on BSD/UNIX. Containers get the minimum CPU weight too.
@@ -51,13 +51,14 @@ It comes as **two apps, everywhere**:
 - ✅ **Pooled storage.** Spare disk on every machine becomes one encrypted store. App data is snapshotted every minute and **moves with the app** to a new machine; folders are **backed up with N copies** on different machines and restore anywhere. Machines holding copies can't read them, and lost copies are re-made automatically. See [Storage](docs/STORAGE.md).
 - ✅ **Batch jobs and AI across machines.** Split work into N pieces spread over the pool, with results collected into one folder; run one AI model split across several machines (llama.cpp); schedule by free GPU memory on NVIDIA, AMD, Intel and Apple. See [Batch jobs, groups and GPUs](docs/BATCH.md).
 - ✅ **Internet-scale.** Machines join from anywhere: join codes carry every address, and the node can open its own port on your router. Run 3 nodes as a **cluster** and any one can fail. Pieces of work can be **checked on several machines**, and apps on machines lent by others reach only the websites they declare, never the lender's network. See [Clusters](docs/CLUSTER.md) and the [security model](docs/SECURITY-MODEL.md).
+- ✅ **Virtual machines and desktops.** Whole operating systems as apps (QEMU, hardware-accelerated), whose disks move with them; their screens open in the browser. A Linux desktop in the browser, and an experimental game streaming host for Moonlight. See [VMs, desktops and gaming](docs/VMS.md).
 - ✅ **Fast save.** The node's state and each client's undelivered results live in an fsync'd, checksummed write-ahead journal. Pull the plug at any moment and nothing acknowledged is lost.
 - ✅ **Marketplace** with Jellyfin, Plex, Audiobookshelf, Ollama (AI), Syncthing (backups), websites, Cloudflare Tunnel, GitHub Actions runners, any container… and it only offers what your connected machines can actually run.
 - ✅ **Signed packages.** Third-party packages must be Ed25519-signed by a key you chose to trust.
 - ✅ **Safe for strangers.** Machines shared by other people only run hardened, sandboxed containers. Native programs run only on machines whose owner said "this is mine".
 - ✅ **Builds for 21+ OS/CPU combinations** from one codebase: Windows, macOS, Linux, FreeBSD, OpenBSD, NetBSD, DragonFly, Solaris, illumos, AIX, Android…
 
-See the **[roadmap](docs/ROADMAP.md)** for what's next (cloud gaming, full VMs, remote desktops, Android and sideloaded iOS…).
+See the **[roadmap](docs/ROADMAP.md)** for what's next (Android and Android TV, sideloaded iPhone/iPad/Apple TV…).
 
 ## Quick start
 
@@ -111,6 +112,7 @@ go build ./cmd/sys0 && go build ./cmd/sys1
 | [Reliability](docs/RELIABILITY.md) | Fast save, watchdog, failover: exactly what "no data loss" means |
 | [Storage](docs/STORAGE.md) | Pooled, encrypted, replicated storage; app data and backups |
 | [Batch, groups, GPUs](docs/BATCH.md) | Splitting work and AI models across machines |
+| [VMs, desktops and gaming](docs/VMS.md) | Virtual machines, screens in the browser, game streaming |
 | [Clusters and reaching the node](docs/CLUSTER.md) | Joining from anywhere; several nodes so none is a single point of failure |
 | [Security model](docs/SECURITY-MODEL.md) | Trust levels, sandboxing, what a malicious node or client can and cannot do |
 | [Marketplace packages](docs/PACKAGES.md) | Package format, signing, publishing |

@@ -2,6 +2,18 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.6.0] - 2026-11-01
+
+Virtual machines, desktops and gaming.
+
+### Added
+
+- **Virtual machines** (`kind: vm`) with QEMU: checksum-verified base images cached per machine, copy-on-write disks in pooled volumes (VMs move with their disks), port forwards, CPUs, memory, disk size, x86_64 and aarch64, cloud-init first-boot config, hardware acceleration per OS with a software fallback, clean shutdown and paused snapshots through QMP. Owner machines only. CI boots a real VM.
+- **VM screens in the browser**: noVNC (MPL-2.0) bundled in the dashboard, VNC over WebSocket with a random password per VM, **Open screen** on the Apps tab.
+- Packages: **Ubuntu Server VM** (x86_64 and ARM), **Linux desktop in your browser** (Webtop), **Game streaming host** (Sunshine + Moonlight, experimental).
+- `shmMB` for containers; sys0 refuses native programs that aren't installed so the pool tries elsewhere.
+- docs/VMS.md.
+
 ## [0.5.0] - 2026-11-01
 
 Internet-scale pools.

@@ -64,11 +64,14 @@ Next for AI: GPU builds of the llama.cpp image (CUDA, Vulkan), and more group pa
 
 Still open: a relay for machines that can't reach the node directly even with a VPN (#14), and recovering pooled storage's catalog on a single node that lost its disk (#27).
 
-## 🎮 v0.6: Cloud gaming and desktops
+## ✅ v0.6: Virtual machines, desktops and gaming (done)
 
-- Game streaming packages (Sunshine/Moonlight) on GPU machines
-- Full VMs (QEMU/KVM, Hyper-V, Apple Virtualization) as a package kind
-- Remote desktops from the pool
+- ✅ Full VMs as a package kind with QEMU (KVM, Apple Hypervisor, Windows Hypervisor Platform), checksum-verified images, disks that move with the VM, clean shutdown, consistent snapshots; a real VM boots in CI
+- ✅ VM screens in the browser (noVNC, per-VM password)
+- ✅ Ubuntu Server VMs (x86_64, ARM) and a Linux desktop in the browser
+- ✅ Game streaming host (Sunshine + Moonlight), experimental
+
+Next: GPU passthrough for VMs, Windows guests, and a CI test of game streaming on a GPU machine.
 
 ## 📱 v0.7: More devices
 
