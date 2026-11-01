@@ -2,6 +2,22 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.7.0] - 2026-11-01
+
+More devices.
+
+### Added
+
+- **Android app** (`sys1_<v>_android.apk`) for phones, tablets and Android TV: paste a join code, lend only while charging with the screen off (TVs: whenever on power), a foreground service that restarts after reboots. arm64, x86_64 and ARMv7. CI installs it on an emulator and sees it join a node.
+- **Magisk module** (`sys1_<v>_android_magisk.zip`) for rooted Android: sys0 as a lowest-priority daemon.
+- **iPhone and iPad app** for sideloading (`sys1_<v>_ios_sideload.ipa`, AltStore/SideStore/your own certificate): lends while open and charging. CI runs it on a simulator and sees it join a node. Never the App Store.
+- **Jailbreak package** (`sys1_<v>_ios_jailbreak_iphoneos-arm64.deb`, rootless): sys0 as a launchd daemon, pausing on battery (IOKit).
+- sys0 reports `android` as its OS on Android, and falls back to public DNS where `/etc/resolv.conf` doesn't exist.
+
+### Not possible yet
+
+- Apple TV: Go can't build for tvOS.
+
 ## [0.6.0] - 2026-11-01
 
 Virtual machines, desktops and gaming.

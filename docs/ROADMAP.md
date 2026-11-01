@@ -73,18 +73,55 @@ Still open: a relay for machines that can't reach the node directly even with a 
 
 Next: GPU passthrough for VMs, Windows guests, and a CI test of game streaming on a GPU machine.
 
-## 📱 v0.7: More devices
+## ✅ v0.7: More devices (done)
 
-- Android and Android TV app (idle + charging; or rooted daemon); F-Droid
-- iOS / iPadOS / tvOS sideload builds and a jailbreak daemon (never the App Store)
+- ✅ Android and Android TV app: lends only while charging and idle; joins a real node on an emulator in CI
+- ✅ Magisk module for rooted Android
+- ✅ iPhone and iPad: a sideload app (lends while open and charging; joins a node on a simulator in CI) and a jailbreak .deb with a launchd daemon. Never the App Store.
 
-## 🧩 Integrations (ongoing)
+Not possible yet: Apple TV (Go can't build for tvOS). Later: F-Droid, a Sileo/Cydia package repository.
 
-- Deploy from a GitHub repository (build on the pool, deploy on push)
-- Cloudflare DNS + tunnels managed from the dashboard
-- Webhooks and a public node API with scoped tokens
-- Prometheus metrics, OpenTelemetry
+## 🩺 v0.8: Self-care
+
+- Automatic updates, verified twice: the SHA-256 in `checksums.txt` and a Sigstore signature from this repository's release workflow; rollback if a new version crashes on start (#30)
+- Crash reports scrubbed of anything personal, grouped on the node, and filed as GitHub issues through a small intake service; never a token inside an app (#31)
+
+## 📦 v0.9: Package repositories
+
+- A Sileo/Cydia repository for jailbroken iPhones and iPads (#29), F-Droid
+- Signed apt and dnf repositories on GitHub Pages (#6)
+- Battery detection on the BSDs (#24)
+
+## 🧱 v1.0: Stable
+
+- Protocol and data formats frozen, with upgrade tests from every earlier release
+- A full security review of the client sandbox, TLS pinning and pooled-storage crypto
+- Every doc checked against the code
+
+## 🧩 v1.1: Integrations
+
+- Deploy from a GitHub repository (#20)
+- Cloudflare tunnels and DNS from the dashboard (#21)
+- Webhooks and a node API with scoped tokens
+
+## 🛰 v1.2: Remote access and recovery
+
+- A remote dashboard mode (#26)
+- A relay for machines that can't reach the node directly (#14)
+- Catalog recovery after a single node loses its disk (#27)
+
+## 📈 v1.3: Observability
+
+- Prometheus metrics, OpenTelemetry, per-machine history and alerts
+
+## 🎮 v1.4: GPUs
+
+- CUDA and Vulkan AI (#28), GPU VMs, game streaming tested on a real GPU (#16)
+
+## 🚀 v2.0: Next generation
+
+- Protocol v2 (multiplexed, push-based), WebAssembly packages that run on every machine without a container runtime, live checkpointing with CRIU
 
 ## Ideas parking lot
 
-Live process checkpointing with CRIU on Linux · WebAssembly package kind (runs anywhere, no container runtime) · energy-aware scheduling (prefer machines on solar / cheap tariffs) · confidential computing (SEV-SNP/TDX) for sensitive work on community machines.
+Energy-aware scheduling (prefer machines on solar / cheap tariffs) · confidential computing (SEV-SNP/TDX) for sensitive work on community machines.

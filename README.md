@@ -57,8 +57,9 @@ It comes as **two apps, everywhere**:
 - ✅ **Signed packages.** Third-party packages must be Ed25519-signed by a key you chose to trust.
 - ✅ **Safe for strangers.** Machines shared by other people only run hardened, sandboxed containers. Native programs run only on machines whose owner said "this is mine".
 - ✅ **Builds for 21+ OS/CPU combinations** from one codebase: Windows, macOS, Linux, FreeBSD, OpenBSD, NetBSD, DragonFly, Solaris, illumos, AIX, Android…
+- ✅ **Phones and tablets**: an Android app (lends only while charging and idle), a Magisk module, a sideloaded iPhone/iPad app and a jailbreak package. Never the App Store.
 
-See the **[roadmap](docs/ROADMAP.md)** for what's next (Android and Android TV, sideloaded iPhone/iPad/Apple TV…).
+See the **[roadmap](docs/ROADMAP.md)** for what's next (automatic updates, crash reports, integrations…).
 
 ## Quick start
 
@@ -117,7 +118,7 @@ go build ./cmd/sys0 && go build ./cmd/sys1
 | [Security model](docs/SECURITY-MODEL.md) | Trust levels, sandboxing, what a malicious node or client can and cannot do |
 | [Marketplace packages](docs/PACKAGES.md) | Package format, signing, publishing |
 | [Protocol](docs/PROTOCOL.md) | The client ⇄ node API |
-| [Platforms](docs/PLATFORMS.md) | Support for every OS, including Android, iOS and Apple TV |
+| [Platforms](docs/PLATFORMS.md) | Support for every OS, including Android, iPhone and iPad |
 | [Distribution](docs/DISTRIBUTION.md) | Every package manager we target, and their status |
 | [Roadmap](docs/ROADMAP.md) | Where this is going |
 | [FAQ](docs/FAQ.md) | Questions people ask |

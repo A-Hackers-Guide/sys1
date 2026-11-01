@@ -1,6 +1,6 @@
 # Platforms
 
-sys1 is written in Go with no C dependencies (`CGO_ENABLED=0`), so one codebase compiles to a single static binary for each OS and CPU below. Every combination marked **builds** is compiled on every commit by CI.
+sys1 is written in Go with no C dependencies (`CGO_ENABLED=0`, except the iOS builds, which talk to iOS's own frameworks), so one codebase compiles to a single static binary for each OS and CPU below. Every combination marked **builds** is compiled on every commit by CI.
 
 ## Support matrix
 
@@ -13,10 +13,10 @@ sys1 is written in Go with no C dependencies (`CGO_ENABLED=0`), so one codebase 
 | **OpenBSD / NetBSD / DragonFly** | amd64 | ✅ | ✅ | nice 19 | – | rc.d | builds |
 | **Solaris / illumos** | amd64 | ✅ | ✅ | nice 19 | – | manual (SMF planned) | builds |
 | **AIX** | ppc64 | ✅ | ✅ | nice 19 | – | manual | builds |
-| **Android** 8+ | arm64 | ✅ | – | nice 19 + idle I/O | ✅ | app (planned) | builds; app on the roadmap |
-| **Android TV** | arm64 | ✅ | – | same | ✅ | app (planned) | roadmap |
-| **iOS / iPadOS** | arm64 | sideload / jailbreak only | – | – | – | – | roadmap |
-| **tvOS (Apple TV)** | arm64 | sideload / jailbreak only | – | – | – | – | roadmap |
+| **Android** 8+ | arm64, x86_64, armv7 | ✅ app, or Magisk when rooted | – | nice 19 + idle I/O | ✅ | foreground service / Magisk | app CI tested on an emulator |
+| **Android TV** | arm64, armv7 | ✅ same app | – | same | ✅ | same | builds |
+| **iOS / iPadOS** 15+ | arm64 | ✅ sideload app, or jailbreak .deb | – | background QoS | ✅ | app / launchd (jailbreak) | app CI tested on a simulator |
+| **tvOS (Apple TV)** | arm64 | ❌ not yet | – | – | – | – | Go can't build for tvOS yet |
 
 "Builds" means the binary compiles and the portable parts (networking, journal, scheduler) are exercised by the shared test suite. Platform-specific behaviour is verified on the platforms CI runs on: Linux, macOS and Windows.
 
@@ -35,22 +35,44 @@ Without a container runtime a machine still joins the pool and can run native `e
 
 ## Android
 
-Phones and TV boxes are great idle compute, but Android is strict about background work. sys0 follows these rules on Android:
+Phones and TV boxes are great idle compute, but Android is strict about background work. Get `sys1_<version>_android.apk` or `sys1_<version>_android_magisk.zip` from the [latest release](https://github.com/A-Hackers-Guide/sys1/releases/latest).
 
-- **Unrooted:** contribute **only while charging and idle** (screen off). Work stops the moment you unplug. Packaged as an app using a foreground service with a visible notification, as Android requires.
-- **Rooted:** may run as a system daemon with the same lowest-priority rules as Linux, still pausing on battery.
-- **Android TV:** usually always plugged in, so it contributes whenever the TV is idle.
+**The app (no root).** Install the APK (allow "install unknown apps" for your browser or file manager), open **sys0**, paste a join code and switch **Lend this device** on. Then:
 
-The command-line `sys0` binary already builds for Android and detects charging state through `/sys/class/power_supply`. The installable app (APK, F-Droid) is [on the roadmap](ROADMAP.md).
+- It works **only while the device is charging and the screen is off**. Unplug or pick up the phone and work stops within seconds; the pool moves it elsewhere.
+- **Android TV** boxes are always plugged in and have no "screen off", so they lend whenever they're on power.
+- Android requires a visible notification while it runs (a foreground service). It starts again after a reboot.
+- A phone mostly lends pooled storage (and runs native work if you joined it as your own machine). It doesn't run containers or VMs.
 
-## iOS, iPadOS and Apple TV
+**Rooted (Magisk).** Flash the Magisk module in the Magisk app and reboot, then join once from a root shell:
 
-sys1 is **never distributed through the App Store**, on any Apple device, in any form. Support is planned for:
+```sh
+su -c "sys0 join <code> --data /data/adb/sys0 --no-service"
+```
 
-- **Sideloaded** builds (AltStore, SideStore, a developer certificate), contributing while the app is open and the device is charging.
-- **Jailbroken** devices, as a launchd daemon with full background support.
+It runs as a daemon at the lowest priority, like on Linux, and still pauses on battery.
 
-To check on your pool from an iPhone or iPad, open the dashboard in Safari over SSH port forwarding or a VPN (see the FAQ).
+Each release's APK is signed with a new key until the project has a permanent one, so install a new version over the old one by uninstalling first (your join is kept only with the Magisk module). F-Droid is on the roadmap.
+
+## iOS and iPadOS
+
+sys1 is **never distributed through the App Store**, on any Apple device, in any form. There are two ways in:
+
+**Sideload** `sys1_<version>_ios_sideload.ipa` with [AltStore](https://altstore.io), [SideStore](https://sidestore.io) or your own developer certificate (the IPA is unsigned; those tools sign it for your device). Open **sys0**, paste a join code, switch lending on. iOS doesn't let apps work in the background, so it lends **only while the app is open and the device is charging**: leave it on a charger with the app open overnight. The screen stays on while it lends; turn the brightness down.
+
+**Jailbroken** (rootless jailbreaks such as Dopamine or palera1n): install `sys1_<version>_ios_jailbreak_iphoneos-arm64.deb` with Sileo, Zebra or `dpkg -i`, then join once:
+
+```sh
+sudo sys0 join <code> --no-service
+```
+
+A launchd daemon runs it in the background at the lowest priority, only while charging. A package repository for Sileo and Cydia is on the roadmap.
+
+## Apple TV
+
+Not yet. Go, which sys1 is written in, can't build programs for tvOS, and we won't ship a half-working port. If Go gains tvOS support, a sideload build follows. (Apple TV would be sideload or jailbreak only, never the App Store.)
+
+To check on your pool from any phone or tablet, open the dashboard over SSH port forwarding or a VPN (see the FAQ).
 
 ## Unusual and legacy systems
 

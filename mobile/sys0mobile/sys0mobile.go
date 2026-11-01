@@ -86,8 +86,10 @@ func Start(dataDir string) error {
 	if err != nil {
 		return err
 	}
-	a, err := agent.New(dataDir, cfg, cli.Logger(dataDir, "sys0", false))
+	log, logFile := cli.OpenLogger(dataDir, "sys0", false)
+	a, err := agent.New(dataDir, cfg, log)
 	if err != nil {
+		logFile.Close()
 		return err
 	}
 	s := &resources.Sampler{DataDir: dataDir}
@@ -96,6 +98,7 @@ func Start(dataDir string) error {
 	cancel, done, lastErr = c, make(chan struct{}), ""
 	go func(d chan struct{}) {
 		defer close(d)
+		defer logFile.Close()
 		if err := a.Run(ctx); err != nil {
 			mu.Lock()
 			lastErr = err.Error()

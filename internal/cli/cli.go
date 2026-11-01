@@ -22,21 +22,29 @@ import (
 // Logger writes to stderr and to <dataDir>/<name>.log, starting the file
 // afresh once it passes 10 MB.
 func Logger(dataDir, name string, verbose bool) *slog.Logger {
+	l, _ := OpenLogger(dataDir, name, verbose)
+	return l
+}
+
+// OpenLogger is Logger for callers that outlive it and must close the log
+// file (embedded uses such as the mobile apps).
+func OpenLogger(dataDir, name string, verbose bool) (*slog.Logger, io.Closer) {
 	var w io.Writer = os.Stderr
+	var c io.Closer = io.NopCloser(nil)
 	if err := os.MkdirAll(dataDir, 0o700); err == nil {
 		path := filepath.Join(dataDir, name+".log")
 		if fi, err := os.Stat(path); err == nil && fi.Size() > 10<<20 {
 			os.Rename(path, path+".old")
 		}
 		if f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
-			w = io.MultiWriter(os.Stderr, f)
+			w, c = io.MultiWriter(os.Stderr, f), f
 		}
 	}
 	level := slog.LevelInfo
 	if verbose {
 		level = slog.LevelDebug
 	}
-	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level}))
+	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level})), c
 }
 
 // SignalContext is cancelled on Ctrl+C or a termination signal.

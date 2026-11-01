@@ -38,6 +38,10 @@ Because we want it used everywhere by everyone, with no legal friction. You can 
 
 sys1 is the system you see; sys0 is the layer underneath that you don't.
 
+### Can my phone or tablet join the pool?
+
+Yes. Android phones, tablets and TV boxes have an app that lends only while charging and idle; rooted Android has a Magisk module. iPhones and iPads have a sideload app (lends while open and charging) and a jailbreak package. None of them is in the App Store, and the Apple ones never will be. See [Platforms](PLATFORMS.md#android).
+
 ### Can I use the dashboard from my phone?
 
 The dashboard is bound to the node machine for safety. To reach it from elsewhere, use SSH port forwarding (`ssh -L 7700:127.0.0.1:7700 node-machine`) or run the node with `--gui 0.0.0.0:7700` on a trusted network only (it warns you). A proper remote access mode is on the roadmap.

@@ -34,4 +34,4 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
-        OTHER_LDFLAGS: ["-lresolv"]
+        OTHER_LDFLAGS: ["-lresolv", "-framework", "IOKit"]
