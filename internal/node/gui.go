@@ -67,6 +67,24 @@ func (n *Node) guiHandler(addr string) http.Handler {
 	mux.HandleFunc("POST /api/agents/{id}/remove", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		replyErr(w, n.RemoveAgent(r.PathValue("id")))
 	}))
+	mux.HandleFunc("POST /api/jobs/{id}/stop", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		replyErr(w, n.StopJob(r.PathValue("id")))
+	}))
+	mux.HandleFunc("POST /api/jobs/{id}/collect", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			AgentID string `json:"agentId"`
+			Dest    string `json:"dest"`
+		}
+		if !readJSON(w, r, 1<<16, &req) {
+			return
+		}
+		count, err := n.CollectJob(r.PathValue("id"), req.AgentID, req.Dest)
+		if err != nil {
+			replyErr(w, err)
+			return
+		}
+		writeJSON(w, map[string]int{"restores": count})
+	}))
 	mux.HandleFunc("GET /api/storage", n.guiAuth(n.handleStorage))
 	mux.HandleFunc("GET /api/storage/recovery-key", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"key": n.RecoveryKey()})
@@ -207,6 +225,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 		Totals      totals      `json:"totals"`
 		Agents      []agentView `json:"agents"`
 		Tasks       []taskView  `json:"tasks"`
+		Jobs        []jobView   `json:"jobs"`
 	}
 	out.Version, out.JoinCode, out.PublicAddr, out.Fingerprint = version.Version, code.String(), code.Addr, n.fp
 	out.Uptime = now.Sub(n.started).Seconds()
@@ -226,6 +245,9 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 		}
 		if t.State == StateRunning {
 			out.Totals.Running++
+		}
+		if t.Parent != "" {
+			continue // shown as part of its job
 		}
 		out.Tasks = append(out.Tasks, tv)
 	}
@@ -254,6 +276,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 		return out.Agents[i].Name < out.Agents[j].Name
 	})
 	sort.Slice(out.Tasks, func(i, j int) bool { return out.Tasks[i].Created.After(out.Tasks[j].Created) })
+	out.Jobs = n.jobViewsLocked()
 	writeJSON(w, out)
 }
 

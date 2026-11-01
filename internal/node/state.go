@@ -54,6 +54,8 @@ type Task struct {
 	Checkpoint []byte            `json:"checkpoint,omitempty"`
 	Snapshot   string            `json:"snapshot,omitempty"` // latest volume snapshot root
 	SnapshotAt time.Time         `json:"snapshotAt,omitempty"`
+	Parent     string            `json:"parent,omitempty"` // the batch job or group this task belongs to
+	Shard      int               `json:"shard,omitempty"`
 	Created    time.Time         `json:"created"`
 	Updated    time.Time         `json:"updated"`
 }
@@ -81,6 +83,8 @@ type event struct {
 	Backup      *Backup   `json:"backup,omitempty"`
 	DelBackup   string    `json:"delBackup,omitempty"`
 	Restore     *Restore  `json:"restore,omitempty"`
+	Job         *Job      `json:"job,omitempty"`
+	DelJob      string    `json:"delJob,omitempty"`
 }
 
 func (n *Node) replay(b []byte) error {
@@ -109,6 +113,10 @@ func (n *Node) replay(b []byte) error {
 		delete(n.pool.backups, e.DelBackup)
 	case e.Restore != nil:
 		n.pool.restores[e.Restore.ID] = e.Restore
+	case e.Job != nil:
+		n.jobs[e.Job.ID] = e.Job
+	case e.DelJob != "":
+		delete(n.jobs, e.DelJob)
 	}
 	return nil
 }
@@ -147,6 +155,9 @@ func (n *Node) compactLocked() {
 	}
 	for _, r := range n.pool.restores {
 		add(event{Restore: r})
+	}
+	for _, j := range n.jobs {
+		add(event{Job: j})
 	}
 	if err := n.j.Compact(recs); err != nil {
 		n.log.Error("journal compaction failed", "err", err)

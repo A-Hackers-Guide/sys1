@@ -45,12 +45,12 @@ The command-line `sys0` binary already builds for Android and detects charging s
 
 ## iOS, iPadOS and Apple TV
 
-Apple does not allow App Store apps to run background compute like this, so sys1 will **not** be in the App Store. Support is planned for:
+sys1 is **never distributed through the App Store**, on any Apple device, in any form. Support is planned for:
 
 - **Sideloaded** builds (AltStore, SideStore, a developer certificate), contributing while the app is open and the device is charging.
 - **Jailbroken** devices, as a launchd daemon with full background support.
 
-A "remote control" app to view the dashboard from an iPhone or Apple TV is possible through the App Store and is also on the roadmap.
+To check on your pool from an iPhone or iPad, open the dashboard in Safari over SSH port forwarding or a VPN (see the FAQ).
 
 ## Unusual and legacy systems
 

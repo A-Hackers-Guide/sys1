@@ -68,8 +68,7 @@ Next for storage: erasure coding (less space than full copies), block-level dedu
 ## 📱 v0.7: More devices
 
 - Android and Android TV app (idle + charging; or rooted daemon); F-Droid
-- iOS / iPadOS / tvOS sideload builds; jailbreak daemon
-- Dashboard companion app for phones
+- iOS / iPadOS / tvOS sideload builds and a jailbreak daemon (never the App Store)
 
 ## 🧩 Integrations (ongoing)
 

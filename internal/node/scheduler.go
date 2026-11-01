@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
-	"github.com/A-Hackers-Guide/sys1/internal/resources"
 )
 
 // perAgentLimit caps how many tasks the node places on one machine.
@@ -21,6 +20,11 @@ func (n *Node) online(a *Agent, now time.Time) bool {
 
 // canRun reports whether agent a may run spec at all.
 func canRun(a *Agent, s protocol.TaskSpec) bool {
+	if s.MinVRAMMB > 0 {
+		if g, ok := a.Resources.BestGPU(s.Kind); !ok || g.Avail() < s.MinVRAMMB {
+			return false
+		}
+	}
 	switch s.Kind {
 	case protocol.KindContainer:
 		return a.Resources.HasContainers()
@@ -54,8 +58,10 @@ func score(a *Agent, s protocol.TaskSpec, load int) float64 {
 	spareCores := float64(r.CPUCores) * r.CPUIdlePercent / 100
 	spareGB := float64(r.MemFree) / (1 << 30)
 	sc := spareCores*10 + spareGB*2 - float64(load)*15
-	if s.GPU && resources.NvidiaGPU(r) {
-		sc += 100
+	if s.GPU || s.MinVRAMMB > 0 {
+		if g, ok := r.BestGPU(s.Kind); ok {
+			sc += 100 + float64(g.Avail())/1024*5 // more free GPU memory wins
+		}
 	}
 	if a.Local {
 		sc -= 5 // leave the node's own machine for the GUI when possible

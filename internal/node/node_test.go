@@ -20,6 +20,22 @@ import (
 // saves its machine's directory as a checkpoint and crashes, until it
 // starts on a different machine with that checkpoint, where it finishes.
 func TestMain(m *testing.M) {
+	if os.Getenv("SYS1_TEST_HELPER") == "shard" {
+		// Writes its piece of the result. Shard 2 crashes on every machine
+		// until it has been moved once, to prove shards retry elsewhere.
+		i, n := os.Getenv("SYS1_SHARD_INDEX"), os.Getenv("SYS1_SHARD_COUNT")
+		if i == "2" {
+			cp := os.Getenv("SYS1_CHECKPOINT")
+			here, _ := os.Getwd()
+			if b, err := os.ReadFile(cp); err != nil || string(b) == here {
+				os.WriteFile(cp, []byte(here), 0o600)
+				os.Exit(4)
+			}
+		}
+		os.WriteFile(filepath.Join(os.Getenv("SYS1_VOLUME_0"), "result.txt"), []byte("piece "+i+" of "+n), 0o644)
+		fmt.Println("piece", i, "done")
+		os.Exit(0)
+	}
 	if os.Getenv("SYS1_TEST_HELPER") == "volume" {
 		// Finds its data if it was restored here; otherwise writes it and
 		// keeps running until its machine goes away.
@@ -374,5 +390,88 @@ func TestSchedulerRespectsTrustAndFit(t *testing.T) {
 	small := &Agent{Resources: protocol.Resources{CPUCores: 8, CPUIdlePercent: 90, MemFree: 1 << 30}}
 	if score(small, protocol.TaskSpec{MemoryMB: 4096}, 0) >= 0 {
 		t.Fatal("task placed on a machine without enough memory")
+	}
+}
+
+// TestBatchJob splits a job into 6 shards over 3 machines; one shard keeps
+// crashing on its first machine and must finish on another; then every
+// shard's output is collected into one folder.
+func TestBatchJob(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow end-to-end test")
+	}
+	n, ctx := startNode(t)
+	var ids []string
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		id, _ := joinAgent(t, ctx, n, name)
+		ids = append(ids, id)
+	}
+	exe, _ := os.Executable()
+	n.mu.Lock()
+	j, err := n.queueJobLocked("test", "pieces", protocol.TaskSpec{
+		Kind: protocol.KindExec, Command: []string{exe, "-test.run=^$"}, OS: []string{"any"},
+		Env: map[string]string{"SYS1_TEST_HELPER": "shard"}, Volumes: []string{"/out"}, Shards: 6,
+	})
+	n.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, n, 90*time.Second, "all shards to finish with saved output", func() bool {
+		p := n.progressLocked(j)
+		return p.Failed > 0 || (p.Done == 6 && p.Saved == 6)
+	})
+	n.mu.Lock()
+	p := n.progressLocked(j)
+	used := map[string]bool{}
+	for _, c := range j.Children {
+		used[n.tasks[c].AgentID] = true
+	}
+	moved := n.tasks[j.Children[2]].Attempt > 1
+	n.mu.Unlock()
+	if p.Done != 6 {
+		t.Fatalf("progress %+v", p)
+	}
+	if len(used) < 2 {
+		t.Fatalf("all shards ran on %d machine(s); expected them spread out", len(used))
+	}
+	if !moved {
+		t.Fatal("the crashing shard was never moved to another machine")
+	}
+
+	dest := filepath.Join(t.TempDir(), "results")
+	count, err := n.CollectJob(j.ID, ids[0], dest)
+	if err != nil || count != 6 {
+		t.Fatalf("collect: %d, %v", count, err)
+	}
+	waitFor(t, n, 60*time.Second, "results to be restored", func() bool {
+		for _, r := range n.pool.restores {
+			if r.State == "pending" {
+				return false
+			}
+		}
+		return true
+	})
+	for i := 0; i < 6; i++ {
+		f := filepath.Join(dest, fmt.Sprintf("shard-%04d", i), "vol0", "result.txt")
+		got, err := os.ReadFile(f)
+		if want := fmt.Sprintf("piece %d of 6", i); err != nil || string(got) != want {
+			t.Fatalf("%s = %q, %v (want %q)", f, got, err, want)
+		}
+	}
+}
+
+func TestSchedulerGPUMemory(t *testing.T) {
+	small := &Agent{Trust: protocol.TrustOwner, Resources: protocol.Resources{OS: "linux", Runtimes: []string{"docker"},
+		GPUInfo: []protocol.GPU{{Vendor: "nvidia", VRAMMB: 8192, FreeMB: 6000}}}}
+	big := &Agent{Trust: protocol.TrustOwner, Resources: protocol.Resources{OS: "linux", Runtimes: []string{"docker"},
+		GPUInfo: []protocol.GPU{{Vendor: "nvidia", VRAMMB: 24576, FreeMB: 20000}}}}
+	mac := &Agent{Trust: protocol.TrustOwner, Resources: protocol.Resources{OS: "darwin", Runtimes: []string{"docker"},
+		GPUInfo: []protocol.GPU{{Vendor: "apple", VRAMMB: 64000}}}}
+	spec := protocol.TaskSpec{Kind: protocol.KindContainer, Image: "x", MinVRAMMB: 12000}
+	if canRun(small, spec) || !canRun(big, spec) {
+		t.Fatal("GPU memory requirement not enforced")
+	}
+	if canRun(mac, spec) {
+		t.Fatal("container sent to an Apple GPU it can't use")
 	}
 }

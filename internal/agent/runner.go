@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
-	"github.com/A-Hackers-Guide/sys1/internal/resources"
 	"github.com/A-Hackers-Guide/sys1/internal/storage"
 	"github.com/A-Hackers-Guide/sys1/internal/watchdog"
 )
@@ -207,9 +206,14 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 		name := "sys1-" + t.ID
 		exec.Command(rt, "rm", "-f", name).Run() // leftover from a crash
 		a.mu.Lock()
-		gpu := t.Spec.GPU && rt == "docker" && resources.NvidiaGPU(a.last)
+		gpu := ""
+		if t.Spec.GPU || t.Spec.MinVRAMMB > 0 {
+			if g, ok := a.last.BestGPU(protocol.KindContainer); ok {
+				gpu = g.Vendor
+			}
+		}
 		a.mu.Unlock()
-		cmd = exec.Command(rt, containerArgs(t, name, dir, a.cfg.Trust, gpu)...)
+		cmd = exec.Command(rt, containerArgs(t, name, dir, rt, a.cfg.Trust, gpu)...)
 		stop = func() {
 			sctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
@@ -264,7 +268,7 @@ func (a *Agent) runOnce(ctx context.Context, t protocol.Task, dir string, out *t
 // lowest CPU weight, a process limit and no privilege escalation; machines
 // shared by other people also drop every capability except a small,
 // common set.
-func containerArgs(t protocol.Task, name, dir string, trust protocol.Trust, gpu bool) []string {
+func containerArgs(t protocol.Task, name, dir, rt string, trust protocol.Trust, gpu string) []string {
 	s := t.Spec
 	state := filepath.Join(dir, "state")
 	args := []string{"run", "--rm", "--name", name, "--label", "sys1.task=" + t.ID, "--init",
@@ -299,8 +303,19 @@ func containerArgs(t protocol.Task, name, dir string, trust protocol.Trust, gpu 
 	for _, k := range sortedKeys(s.Env) {
 		args = append(args, "-e", k+"="+s.Env[k])
 	}
-	if gpu {
-		args = append(args, "--gpus", "all")
+	// GPU access differs by vendor: NVIDIA goes through the container
+	// toolkit (CDI on Podman), AMD and Intel through their /dev nodes.
+	switch gpu {
+	case "nvidia":
+		if rt == "podman" {
+			args = append(args, "--device", "nvidia.com/gpu=all")
+		} else {
+			args = append(args, "--gpus", "all")
+		}
+	case "amd":
+		args = append(args, "--device", "/dev/kfd", "--device", "/dev/dri", "--group-add", "video")
+	case "intel":
+		args = append(args, "--device", "/dev/dri")
 	}
 	args = append(args, s.Image)
 	return append(args, s.Command...)

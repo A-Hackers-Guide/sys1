@@ -51,9 +51,52 @@ type Resources struct {
 	MemFree        uint64   `json:"memFree"`
 	DiskTotal      uint64   `json:"diskTotal"`
 	DiskFree       uint64   `json:"diskFree"`
-	GPUs           []string `json:"gpus,omitempty"`
+	GPUs           []string `json:"gpus,omitempty"` // display names
+	GPUInfo        []GPU    `json:"gpuInfo,omitempty"`
 	OnBattery      bool     `json:"onBattery"`
 	Runtimes       []string `json:"runtimes,omitempty"` // "docker", "podman", "exec"
+}
+
+// GPU is one graphics or AI accelerator.
+type GPU struct {
+	Vendor string `json:"vendor"` // nvidia, amd, intel, apple, other
+	Name   string `json:"name"`
+	VRAMMB int    `json:"vramMB"`           // total memory (Apple: the share usable by the GPU)
+	FreeMB int    `json:"freeMB,omitempty"` // 0 when the driver doesn't say
+}
+
+// Avail is the GPU memory a task can count on.
+func (g GPU) Avail() int {
+	if g.FreeMB > 0 {
+		return g.FreeMB
+	}
+	return g.VRAMMB
+}
+
+// UsableGPUs lists GPUs a task of this kind can actually use here.
+// Containers reach NVIDIA GPUs through the NVIDIA container toolkit, and
+// AMD and Intel GPUs through /dev on Linux; Docker on macOS and Windows
+// cannot pass Apple, AMD or Intel GPUs through. Native programs use any.
+func (r Resources) UsableGPUs(kind Kind) []GPU {
+	var out []GPU
+	for _, g := range r.GPUInfo {
+		if kind == KindExec || g.Vendor == "nvidia" || ((g.Vendor == "amd" || g.Vendor == "intel") && r.OS == "linux") {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// BestGPU is the usable GPU with the most memory available.
+func (r Resources) BestGPU(kind Kind) (GPU, bool) {
+	var best GPU
+	ok := false
+	for _, g := range r.UsableGPUs(kind) {
+		if !ok || g.Avail() > best.Avail() {
+			best, ok = g, true
+		}
+	}
+	return best, ok
 }
 
 func (r Resources) HasRuntime(name string) bool {
@@ -90,11 +133,13 @@ type TaskSpec struct {
 	LocalVolumes    []string `json:"localVolumes,omitempty"`
 	SnapshotSeconds int      `json:"snapshotSeconds,omitempty"` // how often volumes are snapshotted (default 60)
 	Network         bool     `json:"network"`
-	CPU             float64  `json:"cpu,omitempty"`      // cores, 0 = no limit
-	MemoryMB        int      `json:"memoryMB,omitempty"` // 0 = no limit
-	GPU             bool     `json:"gpu,omitempty"`      // prefer and use a GPU when available
-	Service         bool     `json:"service,omitempty"`  // runs forever and is restarted on exit
-	OS              []string `json:"os,omitempty"`       // exec only: OSes the program runs on
+	CPU             float64  `json:"cpu,omitempty"`       // cores, 0 = no limit
+	MemoryMB        int      `json:"memoryMB,omitempty"`  // 0 = no limit
+	GPU             bool     `json:"gpu,omitempty"`       // prefer and use a GPU when available
+	MinVRAMMB       int      `json:"minVramMB,omitempty"` // only run where a usable GPU has this much free memory
+	Shards          int      `json:"shards,omitempty"`    // a batch job of this many pieces (see docs/BATCH.md)
+	Service         bool     `json:"service,omitempty"`   // runs forever and is restarted on exit
+	OS              []string `json:"os,omitempty"`        // exec only: OSes the program runs on
 }
 
 var (
@@ -139,6 +184,12 @@ func (s TaskSpec) Validate() error {
 			return fmt.Errorf("volume %q listed twice", v)
 		}
 		seen[v] = true
+	}
+	if s.Shards < 0 {
+		return errors.New("shards cannot be negative")
+	}
+	if s.MinVRAMMB < 0 {
+		return errors.New("minVramMB cannot be negative")
 	}
 	if s.SnapshotSeconds < 0 {
 		return errors.New("snapshotSeconds cannot be negative")

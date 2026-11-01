@@ -23,7 +23,7 @@ type Sampler struct {
 
 	mu       sync.Mutex
 	probed   time.Time
-	gpus     []string
+	gpus     []protocol.GPU
 	runtimes []string
 }
 
@@ -49,7 +49,10 @@ func (s *Sampler) Sample(allowExec bool) protocol.Resources {
 		s.gpus, s.runtimes = probeGPUs(), probeRuntimes()
 		s.probed = time.Now()
 	}
-	r.GPUs = s.gpus
+	r.GPUInfo = append([]protocol.GPU(nil), s.gpus...)
+	for _, g := range s.gpus {
+		r.GPUs = append(r.GPUs, g.Name)
+	}
 	r.Runtimes = append([]string(nil), s.runtimes...)
 	s.mu.Unlock()
 	if allowExec {
@@ -77,29 +80,4 @@ func probeRuntimes() []string {
 		}
 	}
 	return rts
-}
-
-func probeGPUs() []string {
-	var gpus []string
-	if out, ok := run("nvidia-smi", "--query-gpu=name", "--format=csv,noheader"); ok {
-		for _, l := range strings.Split(out, "\n") {
-			if l = strings.TrimSpace(l); l != "" {
-				gpus = append(gpus, "NVIDIA "+strings.TrimPrefix(l, "NVIDIA "))
-			}
-		}
-	}
-	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
-		gpus = append(gpus, "Apple Silicon GPU")
-	}
-	return gpus
-}
-
-// NvidiaGPU reports whether r includes an NVIDIA GPU (usable by containers).
-func NvidiaGPU(r protocol.Resources) bool {
-	for _, g := range r.GPUs {
-		if strings.HasPrefix(g, "NVIDIA") {
-			return true
-		}
-	}
-	return false
 }

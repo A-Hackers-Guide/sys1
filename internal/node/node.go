@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,7 @@ type Node struct {
 	mu        sync.Mutex
 	agents    map[string]*Agent
 	tasks     map[string]*Task
+	jobs      map[string]*Job
 	joinToken string
 	// localToken lets the node's own built-in client join as an owner
 	// machine. It lives only in memory and never leaves this process.
@@ -66,7 +68,7 @@ type Node struct {
 }
 
 func New(cfg Config, log *slog.Logger) (*Node, error) {
-	n := &Node{cfg: cfg, log: log, agents: map[string]*Agent{}, tasks: map[string]*Task{}, started: time.Now()}
+	n := &Node{cfg: cfg, log: log, agents: map[string]*Agent{}, tasks: map[string]*Task{}, jobs: map[string]*Job{}, started: time.Now()}
 	var err error
 	if n.cert, err = tlsutil.LoadOrCreate(cfg.DataDir); err != nil {
 		return nil, err
@@ -395,7 +397,18 @@ func (n *Node) Deploy(pkgName string, inputs map[string]string) (*Task, error) {
 	if !p.Verified {
 		return nil, errors.New("package is not verified: " + p.Problem)
 	}
-	return n.queueLocked(p.Name, p.Title, p.Apply(inputs))
+	spec := p.Apply(inputs)
+	if spec.Shards > 0 {
+		if s, err := strconv.Atoi(inputs["SHARDS"]); err == nil && s > 0 {
+			spec.Shards = s
+		}
+		j, err := n.queueJobLocked(p.Name, p.Title, spec)
+		if err != nil {
+			return nil, err
+		}
+		return n.tasks[j.Children[0]], nil
+	}
+	return n.queueLocked(p.Name, p.Title, spec)
 }
 
 func (n *Node) queueLocked(pkg, title string, spec protocol.TaskSpec) (*Task, error) {
