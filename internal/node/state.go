@@ -10,6 +10,7 @@ import (
 // Task states.
 const (
 	StateQueued   = "queued"   // waiting for a machine
+	StateWaiting  = "waiting"  // a group's head, waiting for its workers
 	StateAssigned = "assigned" // sent to a machine, not yet confirmed running
 	StateRunning  = "running"
 	StateStopping = "stopping" // the user asked to stop it

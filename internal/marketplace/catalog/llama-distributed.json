@@ -1,0 +1,37 @@
+{
+  "name": "llama-distributed",
+  "version": "1.0.0",
+  "title": "AI model split across machines",
+  "description": "Runs one large language model across several of your machines with llama.cpp, so models too big for any one of them still fit. OpenAI-compatible API on port 8080. Only for your own machines on a trusted network: llama.cpp's RPC has no password.",
+  "category": "AI",
+  "icon": "🧩",
+  "author": "sys1",
+  "homepage": "https://github.com/ggml-org/llama.cpp/tree/master/tools/rpc",
+  "inputs": [
+    {"name": "MODEL", "label": "Model on Hugging Face (repo, optionally :quant)", "default": "ggml-org/gemma-3-1b-it-GGUF"},
+    {"name": "WORKERS", "label": "How many other machines to split it across", "default": "2"}
+  ],
+  "run": {
+    "kind": "container",
+    "image": "ghcr.io/a-hackers-guide/llama-rpc:b12019",
+    "command": ["llama-server", "-hf", "${MODEL}", "--rpc", "${SYS1_PEERS}", "-ngl", "99", "--host", "0.0.0.0", "--port", "8080"],
+    "network": true,
+    "ports": ["8080:8080"],
+    "localVolumes": ["/root/.cache/llama.cpp"],
+    "memoryMB": 4096,
+    "service": true,
+    "ownerOnly": true,
+    "group": {
+      "workers": 2,
+      "peerPort": 50052,
+      "worker": {
+        "kind": "container",
+        "image": "ghcr.io/a-hackers-guide/llama-rpc:b12019",
+        "command": ["ggml-rpc-server", "-H", "0.0.0.0", "-p", "${SYS1_PEER_PORT}", "-c"],
+        "network": true,
+        "localVolumes": ["/root/.cache/llama.cpp"],
+        "ownerOnly": true
+      }
+    }
+  }
+}

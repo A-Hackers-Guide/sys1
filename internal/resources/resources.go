@@ -3,6 +3,7 @@ package resources
 
 import (
 	"context"
+	"net"
 	"os"
 	"os/exec"
 	"runtime"
@@ -44,6 +45,7 @@ func (s *Sampler) Sample(allowExec bool) protocol.Resources {
 		r.DiskTotal, r.DiskFree = d.Total, d.Free
 	}
 	r.OnBattery = onBattery()
+	r.Addr = lanAddr()
 	s.mu.Lock()
 	if time.Since(s.probed) > time.Minute {
 		s.gpus, s.runtimes = probeGPUs(), probeRuntimes()
@@ -80,4 +82,15 @@ func probeRuntimes() []string {
 		}
 	}
 	return rts
+}
+
+// lanAddr is the address other machines on the network reach this one on.
+// The UDP "dial" sends nothing; it only asks which interface would be used.
+func lanAddr() string {
+	c, err := net.Dial("udp", "1.1.1.1:80")
+	if err != nil {
+		return ""
+	}
+	defer c.Close()
+	return c.LocalAddr().(*net.UDPAddr).IP.String()
 }

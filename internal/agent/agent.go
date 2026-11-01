@@ -184,6 +184,9 @@ func (a *Agent) refuse(t protocol.Task) string {
 	if len(a.running) >= a.cfg.MaxTasks {
 		return "machine is at its task limit"
 	}
+	if t.Spec.OwnerOnly && a.cfg.Trust != protocol.TrustOwner {
+		return "this app runs only on its owner's own machines"
+	}
 	switch t.Spec.Kind {
 	case protocol.KindExec:
 		if a.cfg.Trust != protocol.TrustOwner {

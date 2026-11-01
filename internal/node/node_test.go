@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,38 @@ import (
 // saves its machine's directory as a checkpoint and crashes, until it
 // starts on a different machine with that checkpoint, where it finishes.
 func TestMain(m *testing.M) {
+	switch os.Getenv("SYS1_TEST_HELPER") {
+	case "worker":
+		// Answers every connection with its index, until stopped.
+		ln, err := net.Listen("tcp", "127.0.0.1:"+os.Getenv("SYS1_PEER_PORT"))
+		if err != nil {
+			os.Exit(5)
+		}
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				os.Exit(6)
+			}
+			fmt.Fprintf(c, "worker %s\n", os.Getenv("SYS1_SHARD_INDEX"))
+			c.Close()
+		}
+	case "head":
+		// Talks to every peer, prints what they said, and finishes.
+		var said []string
+		for _, p := range strings.Split(os.Getenv("SYS1_PEERS"), ",") {
+			c, err := net.DialTimeout("tcp", p, 5*time.Second)
+			if err != nil {
+				fmt.Println("cannot reach", p, err)
+				os.Exit(7)
+			}
+			b, _ := io.ReadAll(c)
+			c.Close()
+			said = append(said, strings.TrimSpace(string(b)))
+		}
+		sort.Strings(said)
+		fmt.Println("peers:", strings.Join(said, ", "))
+		os.Exit(0)
+	}
 	if os.Getenv("SYS1_TEST_HELPER") == "shard" {
 		// Writes its piece of the result. Shard 2 crashes on every machine
 		// until it has been moved once, to prove shards retry elsewhere.
@@ -91,7 +125,7 @@ func joinAgent(t *testing.T, ctx context.Context, n *Node, name string) (agentID
 	t.Helper()
 	code := n.JoinCode()
 	code.Addr = n.LocalJoinCode().Addr
-	res := protocol.Resources{OS: "test", CPUCores: 4, CPUIdlePercent: 90, MemFree: 8 << 30, MemTotal: 16 << 30, Runtimes: []string{"exec"}}
+	res := protocol.Resources{OS: "test", CPUCores: 4, CPUIdlePercent: 90, MemFree: 8 << 30, MemTotal: 16 << 30, Runtimes: []string{"exec"}, Addr: "127.0.0.1"}
 	cfg, err := agent.Register(ctx, code, name, protocol.TrustOwner, res, "test")
 	if err != nil {
 		t.Fatal(err)
@@ -473,5 +507,90 @@ func TestSchedulerGPUMemory(t *testing.T) {
 	}
 	if canRun(mac, spec) {
 		t.Fatal("container sent to an Apple GPU it can't use")
+	}
+}
+
+// TestGroup runs two workers and a head on three different machines; the
+// head reaches both workers through SYS1_PEERS.
+func TestGroup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow end-to-end test")
+	}
+	n, ctx := startNode(t)
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		joinAgent(t, ctx, n, name)
+	}
+	exe, _ := os.Executable()
+	port := 30000 + int(time.Now().UnixNano()%20000)
+	n.mu.Lock()
+	j, err := n.queueGroupLocked("test", "group", protocol.TaskSpec{
+		Kind: protocol.KindExec, Command: []string{exe, "-test.run=^$"}, OS: []string{"any"}, Network: true,
+		Env: map[string]string{"SYS1_TEST_HELPER": "head"},
+		Group: &protocol.GroupSpec{Workers: 2, PeerPort: port, Worker: protocol.TaskSpec{
+			Kind: protocol.KindExec, Command: []string{exe, "-test.run=^$"}, OS: []string{"any"},
+			Env: map[string]string{"SYS1_TEST_HELPER": "worker"},
+		}},
+	})
+	n.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	head := n.tasks[j.Head]
+	waitFor(t, n, 60*time.Second, "the head to finish", func() bool { return terminal(head.State) })
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if head.State != StateDone || !strings.Contains(head.Output, "peers: worker 0, worker 1") {
+		t.Fatalf("head %s: %q (%s)", head.State, head.Output, head.Message)
+	}
+	machines := map[string]bool{}
+	for _, c := range j.Children {
+		machines[n.tasks[c].AgentID] = true
+	}
+	if len(machines) != 3 {
+		t.Fatalf("group ran on %d machines, want 3 different ones", len(machines))
+	}
+}
+
+func TestGroupHeadRestartsWhenAWorkerMoves(t *testing.T) {
+	n, err := New(Config{DataDir: t.TempDir(), ListenAddr: "127.0.0.1:0"}, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { n.j.Close() })
+	now := time.Now()
+	res := func(addr string) protocol.Resources {
+		return protocol.Resources{CPUCores: 4, CPUIdlePercent: 90, MemFree: 8 << 30, Runtimes: []string{"docker"}, Addr: addr}
+	}
+	for _, id := range []string{"a", "b", "c"} {
+		n.agents[id] = &Agent{ID: id, Name: id, Resources: res("10.0.0." + id), LastSeen: now}
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	j, err := n.queueGroupLocked("p", "g", protocol.TaskSpec{Kind: protocol.KindContainer, Image: "head", Network: true,
+		Command: []string{"--rpc", "${SYS1_PEERS}"},
+		Group:   &protocol.GroupSpec{Workers: 2, PeerPort: 50052, Worker: protocol.TaskSpec{Kind: protocol.KindContainer, Image: "w"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w0, w1, head := n.tasks[j.Children[0]], n.tasks[j.Children[1]], n.tasks[j.Head]
+	if w0.AgentID == w1.AgentID {
+		t.Fatal("two workers on one machine")
+	}
+	if head.State != StateWaiting {
+		t.Fatalf("head started before its workers: %s", head.State)
+	}
+	w0.State, w1.State = StateRunning, StateRunning
+	n.scheduleLocked(now)
+	if head.State != StateAssigned || !strings.Contains(head.Spec.Command[1], ":50052") || !strings.Contains(head.Spec.Command[1], ":50053") {
+		t.Fatalf("head not started with both peers: %s %v", head.State, head.Spec.Command)
+	}
+	if head.AgentID == w0.AgentID || head.AgentID == w1.AgentID {
+		t.Fatal("head shares a machine with a worker")
+	}
+	attempt := head.Attempt
+	n.requeueLocked(w1, "moved", false) // a worker's machine went away
+	n.scheduleLocked(now)
+	if head.State != StateWaiting || head.Attempt != attempt+1 {
+		t.Fatalf("head kept running with a stale worker: %s attempt %d", head.State, head.Attempt)
 	}
 }

@@ -1,0 +1,69 @@
+name: llama-rpc image
+
+# Builds ghcr.io/a-hackers-guide/llama-rpc natively on amd64 and arm64,
+# proves a model really runs split across two RPC workers, then publishes
+# a multi-arch image (from main only).
+on:
+  push:
+    paths: ["packaging/llama-rpc/**", ".github/workflows/llama-rpc.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/a-hackers-guide/llama-rpc
+  LLAMA_VERSION: b12019
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build --build-arg LLAMA_VERSION=$LLAMA_VERSION -t llama-rpc:test packaging/llama-rpc
+      - name: Run a model split across two workers
+        run: |
+          set -e
+          mkdir models
+          curl -fsSL -o models/tiny.gguf https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf
+          docker network create pool
+          for w in w0 w1; do
+            docker run -d --name $w --network pool llama-rpc:test ggml-rpc-server -H 0.0.0.0 -p 50052
+          done
+          docker run -d --name head --network pool -p 8080:8080 -v "$PWD/models:/models" llama-rpc:test \
+            llama-server -m /models/tiny.gguf --rpc w0:50052,w1:50052 -ngl 99 --host 0.0.0.0 --port 8080
+          for i in $(seq 1 60); do curl -sf localhost:8080/health && break; sleep 2; done
+          out=$(curl -sf localhost:8080/completion -d '{"prompt":"Once upon a time","n_predict":24}')
+          echo "$out" | head -c 600; echo
+          echo "$out" | python3 -c "import json,sys; c=json.load(sys.stdin)['content']; assert len(c.strip())>0, 'empty completion'; print('completion ok:', repr(c[:80]))"
+          # Both workers must have been used, or the model wasn't split.
+          for w in w0 w1; do
+            docker logs $w 2>&1 | tail -5
+            docker logs $w 2>&1 | grep -qi "accepted client connection" || { echo "$w was never used"; exit 1; }
+          done
+          docker logs head 2>&1 | grep -iE "RPC|offload" | head -10
+      - name: Push the ${{ matrix.arch }} image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag llama-rpc:test $IMAGE:$LLAMA_VERSION-${{ matrix.arch }}
+          docker push $IMAGE:$LLAMA_VERSION-${{ matrix.arch }}
+
+  publish:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Combine into one multi-arch image
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker buildx imagetools create -t $IMAGE:$LLAMA_VERSION -t $IMAGE:latest \
+            $IMAGE:$LLAMA_VERSION-amd64 $IMAGE:$LLAMA_VERSION-arm64
+          docker buildx imagetools inspect $IMAGE:$LLAMA_VERSION

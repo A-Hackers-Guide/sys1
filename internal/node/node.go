@@ -398,6 +398,18 @@ func (n *Node) Deploy(pkgName string, inputs map[string]string) (*Task, error) {
 		return nil, errors.New("package is not verified: " + p.Problem)
 	}
 	spec := p.Apply(inputs)
+	if spec.Group != nil {
+		if w, err := strconv.Atoi(inputs["WORKERS"]); err == nil && w > 0 {
+			g := *spec.Group
+			g.Workers = w
+			spec.Group = &g
+		}
+		j, err := n.queueGroupLocked(p.Name, p.Title, spec)
+		if err != nil {
+			return nil, err
+		}
+		return n.tasks[j.Head], nil
+	}
 	if spec.Shards > 0 {
 		if s, err := strconv.Atoi(inputs["SHARDS"]); err == nil && s > 0 {
 			spec.Shards = s

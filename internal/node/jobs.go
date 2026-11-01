@@ -3,9 +3,11 @@ package node
 import (
 	"errors"
 	"fmt"
+	"net"
 	"path"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
@@ -21,12 +23,15 @@ import (
 const MaxShards = 10000
 
 type Job struct {
-	ID       string    `json:"id"`
-	Package  string    `json:"package"`
-	Title    string    `json:"title"`
-	Shards   int       `json:"shards"`
-	Children []string  `json:"children"`
-	Created  time.Time `json:"created"`
+	ID       string             `json:"id"`
+	Kind     string             `json:"kind,omitempty"` // "" (batch) or "group"
+	Head     string             `json:"head,omitempty"` // group: the head task
+	HeadSpec *protocol.TaskSpec `json:"headSpec,omitempty"`
+	Package  string             `json:"package"`
+	Title    string             `json:"title"`
+	Shards   int                `json:"shards"`
+	Children []string           `json:"children"`
+	Created  time.Time          `json:"created"`
 }
 
 // JobProgress counts a job's shards by state.
@@ -164,6 +169,7 @@ func joinDest(dest, name string) string {
 
 type jobView struct {
 	ID       string      `json:"id"`
+	Kind     string      `json:"kind"`
 	Package  string      `json:"package"`
 	Title    string      `json:"title"`
 	Shards   int         `json:"shards"`
@@ -181,8 +187,138 @@ func (n *Node) jobViewsLocked() []jobView {
 				m[t.AgentID] = true
 			}
 		}
-		out = append(out, jobView{j.ID, j.Package, j.Title, j.Shards, j.Created, n.progressLocked(j), len(m)})
+		out = append(out, jobView{j.ID, j.Kind, j.Package, j.Title, j.Shards, j.Created, n.progressLocked(j), len(m)})
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].Created.After(out[b].Created) })
 	return out
+}
+
+// ---- groups ----
+
+// queueGroupLocked starts a group: the workers are queued now, the head
+// waits until they are all running.
+func (n *Node) queueGroupLocked(pkg, title string, spec protocol.TaskSpec) (*Job, error) {
+	if err := spec.Validate(); err != nil {
+		return nil, err
+	}
+	g := spec.Group
+	head := spec
+	head.Group = nil
+	j := &Job{ID: randomToken()[:12], Kind: "group", Package: pkg, Title: title, Shards: g.Workers, HeadSpec: &head, Created: time.Now()}
+	for i := 0; i < g.Workers; i++ {
+		port := strconv.Itoa(g.PeerPort + i)
+		w := g.Worker
+		w.Network, w.Service = true, true
+		w.Env = map[string]string{}
+		for k, v := range g.Worker.Env {
+			w.Env[k] = v
+		}
+		w.Env["SYS1_PEER_PORT"] = port
+		w.Env["SYS1_SHARD_INDEX"] = strconv.Itoa(i)
+		w.Env["SYS1_SHARD_COUNT"] = strconv.Itoa(g.Workers)
+		w.Command = substitute(g.Worker.Command, "${SYS1_PEER_PORT}", port)
+		if w.Kind == protocol.KindContainer {
+			w.Ports = append(append([]string(nil), g.Worker.Ports...), port+":"+port)
+		}
+		t := &Task{ID: randomToken()[:12], Package: pkg, Title: fmt.Sprintf("%s · worker %d/%d", title, i+1, g.Workers),
+			Spec: w, State: StateQueued, Attempt: 1, Created: time.Now(), Message: "Finding a machine", Parent: j.ID, Shard: i}
+		n.tasks[t.ID] = t
+		n.saveTaskLocked(t)
+		j.Children = append(j.Children, t.ID)
+	}
+	h := &Task{ID: randomToken()[:12], Package: pkg, Title: title + " · head", Spec: head, State: StateWaiting, Attempt: 1,
+		Created: time.Now(), Message: fmt.Sprintf("Waiting for %d worker(s) to start", g.Workers), Parent: j.ID, Shard: -1}
+	n.tasks[h.ID] = h
+	n.saveTaskLocked(h)
+	j.Head = h.ID
+	j.Children = append(j.Children, h.ID)
+	n.jobs[j.ID] = j
+	n.persistLocked(event{Job: j})
+	n.scheduleLocked(time.Now())
+	return j, nil
+}
+
+func substitute(args []string, from, to string) []string {
+	out := make([]string, len(args))
+	for i, a := range args {
+		out[i] = strings.ReplaceAll(a, from, to)
+	}
+	return out
+}
+
+// groupsLocked starts each group's head once every worker runs, and
+// restarts it whenever the set of workers changes.
+func (n *Node) groupsLocked(now time.Time) {
+	for _, j := range n.jobs {
+		if j.Kind != "group" {
+			continue
+		}
+		head := n.tasks[j.Head]
+		if head == nil {
+			continue
+		}
+		if terminal(head.State) {
+			// The head finished or was stopped: so is the group.
+			for _, c := range j.Children {
+				if t := n.tasks[c]; t != nil && c != j.Head && !terminal(t.State) && t.State != StateStopping {
+					if t.AgentID == "" {
+						t.State, t.Message = StateStopped, "Group finished"
+					} else {
+						t.State, t.Message = StateStopping, "Group finished"
+					}
+					n.saveTaskLocked(t)
+				}
+			}
+			continue
+		}
+		var peers []string
+		ready := true
+		for _, c := range j.Children {
+			if c == j.Head {
+				continue
+			}
+			w := n.tasks[c]
+			a := n.agents[w.AgentID]
+			if w.State != StateRunning || a == nil || a.Resources.Addr == "" {
+				ready = false
+				break
+			}
+			peers = append(peers, net.JoinHostPort(a.Resources.Addr, w.Spec.Env["SYS1_PEER_PORT"]))
+		}
+		key := strings.Join(peers, ",")
+		switch {
+		case head.State == StateWaiting && ready:
+			s := *j.HeadSpec
+			s.Env = map[string]string{"SYS1_PEERS": key}
+			for k, v := range j.HeadSpec.Env {
+				s.Env[k] = v
+			}
+			s.Command = substitute(j.HeadSpec.Command, "${SYS1_PEERS}", key)
+			head.Spec, head.State, head.Message = s, StateQueued, "Workers ready; starting"
+			n.saveTaskLocked(head)
+		case head.State != StateWaiting && head.State != StateStopping && (!ready || head.Spec.Env["SYS1_PEERS"] != key):
+			head.AgentID = ""
+			head.Attempt++
+			head.State, head.Message = StateWaiting, "A worker moved; restarting with the new set"
+			n.saveTaskLocked(head)
+		}
+	}
+}
+
+// groupBusyLocked lists, per group, the machines already running one of
+// its members, so members spread over different machines.
+func (n *Node) groupBusyLocked() map[string]map[string]bool {
+	busy := map[string]map[string]bool{}
+	for _, t := range n.tasks {
+		if t.Parent == "" || t.AgentID == "" || terminal(t.State) {
+			continue
+		}
+		if j := n.jobs[t.Parent]; j != nil && j.Kind == "group" {
+			if busy[t.Parent] == nil {
+				busy[t.Parent] = map[string]bool{}
+			}
+			busy[t.Parent][t.AgentID] = true
+		}
+	}
+	return busy
 }

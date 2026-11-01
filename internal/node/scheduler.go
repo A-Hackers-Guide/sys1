@@ -20,6 +20,9 @@ func (n *Node) online(a *Agent, now time.Time) bool {
 
 // canRun reports whether agent a may run spec at all.
 func canRun(a *Agent, s protocol.TaskSpec) bool {
+	if s.OwnerOnly && a.Trust != protocol.TrustOwner {
+		return false
+	}
 	if s.MinVRAMMB > 0 {
 		if g, ok := a.Resources.BestGPU(s.Kind); !ok || g.Avail() < s.MinVRAMMB {
 			return false
@@ -73,6 +76,7 @@ func score(a *Agent, s protocol.TaskSpec, load int) float64 {
 // in the queue, unconfirmed assignments time out, and queued tasks go to
 // the best machine available.
 func (n *Node) scheduleLocked(now time.Time) {
+	n.groupsLocked(now)
 	load := map[string]int{}
 	for _, t := range n.tasks {
 		if t.AgentID == "" || terminal(t.State) {
@@ -95,6 +99,7 @@ func (n *Node) scheduleLocked(now time.Time) {
 		load[t.AgentID]++
 	}
 
+	busy := n.groupBusyLocked()
 	for _, t := range n.tasks {
 		if t.State != StateQueued {
 			continue
@@ -102,7 +107,7 @@ func (n *Node) scheduleLocked(now time.Time) {
 		var best *Agent
 		bestScore := -1.0
 		for _, a := range n.agents {
-			if !n.online(a, now) || t.excludes(a.ID) || !canRun(a, t.Spec) {
+			if !n.online(a, now) || t.excludes(a.ID) || !canRun(a, t.Spec) || busy[t.Parent][a.ID] {
 				continue
 			}
 			if sc := score(a, t.Spec, load[a.ID]); sc > bestScore {
@@ -118,6 +123,9 @@ func (n *Node) scheduleLocked(now time.Time) {
 		}
 		t.State, t.AgentID, t.Message = StateAssigned, best.ID, "Sent to "+best.Name
 		load[best.ID]++
+		if busy[t.Parent] != nil {
+			busy[t.Parent][best.ID] = true
+		}
 		n.saveTaskLocked(t)
 	}
 }

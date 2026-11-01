@@ -166,6 +166,12 @@ func (m Manifest) Permissions() []string {
 	if r.Service {
 		p = append(p, "Runs continuously")
 	}
+	if r.OwnerOnly {
+		p = append(p, "Runs only on your own machines")
+	}
+	if g := r.Group; g != nil {
+		p = append(p, fmt.Sprintf("Uses %d more machines as workers, which other machines on your network can reach on ports %d-%d", g.Workers, g.PeerPort, g.PeerPort+g.Workers-1))
+	}
 	return p
 }
 
@@ -186,10 +192,25 @@ func (m Manifest) Compatible(machines []Machine) (bool, string) {
 	}
 	switch m.Run.Kind {
 	case protocol.KindContainer:
+		need := 1
+		if m.Run.Group != nil {
+			need = m.Run.Group.Workers + 1
+		}
+		have := 0
 		for _, x := range machines {
-			if x.Containers {
-				return true, ""
+			if x.Containers && (x.Owner || !m.Run.OwnerOnly) {
+				have++
 			}
+		}
+		switch {
+		case have >= need:
+			return true, ""
+		case m.Run.OwnerOnly && need > 1:
+			return false, fmt.Sprintf("Needs %d of your own machines with Docker or Podman", need)
+		case m.Run.OwnerOnly:
+			return false, "Needs one of your own machines with Docker or Podman"
+		case need > 1:
+			return false, fmt.Sprintf("Needs %d machines with Docker or Podman", need)
 		}
 		return false, "Needs a machine with Docker or Podman"
 	case protocol.KindExec:

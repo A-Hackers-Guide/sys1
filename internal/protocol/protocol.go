@@ -55,6 +55,7 @@ type Resources struct {
 	GPUInfo        []GPU    `json:"gpuInfo,omitempty"`
 	OnBattery      bool     `json:"onBattery"`
 	Runtimes       []string `json:"runtimes,omitempty"` // "docker", "podman", "exec"
+	Addr           string   `json:"addr,omitempty"`     // address other machines can reach this one on
 }
 
 // GPU is one graphics or AI accelerator.
@@ -137,9 +138,22 @@ type TaskSpec struct {
 	MemoryMB        int      `json:"memoryMB,omitempty"`  // 0 = no limit
 	GPU             bool     `json:"gpu,omitempty"`       // prefer and use a GPU when available
 	MinVRAMMB       int      `json:"minVramMB,omitempty"` // only run where a usable GPU has this much free memory
-	Shards          int      `json:"shards,omitempty"`    // a batch job of this many pieces (see docs/BATCH.md)
 	Service         bool     `json:"service,omitempty"`   // runs forever and is restarted on exit
+	OwnerOnly       bool     `json:"ownerOnly,omitempty"` // only on machines whose owner said "mine" (e.g. unauthenticated network services)
 	OS              []string `json:"os,omitempty"`        // exec only: OSes the program runs on
+	Shards          int      `json:"shards,omitempty"`    // a batch job of this many pieces (see docs/BATCH.md)
+	// Group makes this spec the head of a group of workers on other
+	// machines (see docs/BATCH.md).
+	Group *GroupSpec `json:"group,omitempty"`
+}
+
+// GroupSpec describes a group's workers. Worker i runs on its own machine
+// and listens on PeerPort+i; the head starts once all workers run and gets
+// their addresses in SYS1_PEERS.
+type GroupSpec struct {
+	Workers  int      `json:"workers"`
+	PeerPort int      `json:"peerPort"`
+	Worker   TaskSpec `json:"worker"`
 }
 
 var (
@@ -187,6 +201,23 @@ func (s TaskSpec) Validate() error {
 	}
 	if s.Shards < 0 {
 		return errors.New("shards cannot be negative")
+	}
+	if g := s.Group; g != nil {
+		if s.Shards > 0 {
+			return errors.New("a package is either a batch job or a group, not both")
+		}
+		if g.Workers < 1 || g.Workers > 64 {
+			return errors.New("a group has 1 to 64 workers")
+		}
+		if g.PeerPort < 1024 || g.PeerPort+g.Workers > 65535 {
+			return errors.New("peerPort must leave room for one port per worker, between 1024 and 65535")
+		}
+		if g.Worker.Group != nil || g.Worker.Shards > 0 {
+			return errors.New("workers can't be groups or batch jobs themselves")
+		}
+		if err := g.Worker.Validate(); err != nil {
+			return fmt.Errorf("worker: %w", err)
+		}
 	}
 	if s.MinVRAMMB < 0 {
 		return errors.New("minVramMB cannot be negative")
