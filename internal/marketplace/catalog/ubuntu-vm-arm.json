@@ -1,0 +1,39 @@
+{
+  "name": "ubuntu-vm-arm",
+  "version": "1.0.0",
+  "title": "Ubuntu Server VM (ARM)",
+  "description": "A full Ubuntu 24.04 server as a virtual machine, on one of your own machines with QEMU. Its disk moves with it if the machine goes away. Log in as ubuntu, over SSH on port 2222 or on its screen from the dashboard. Runs natively on Apple Silicon and other ARM machines.",
+  "category": "Virtual machines",
+  "icon": "🐧",
+  "author": "sys1",
+  "homepage": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/",
+  "inputs": [
+    {
+      "name": "PASSWORD",
+      "label": "Password for the ubuntu user",
+      "secret": true
+    }
+  ],
+  "run": {
+    "kind": "vm",
+    "network": true,
+    "ports": [
+      "2222:22"
+    ],
+    "volumes": [
+      "/disk"
+    ],
+    "memoryMB": 2048,
+    "service": true,
+    "snapshotSeconds": 600,
+    "vm": {
+      "image": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-arm64.img",
+      "sha256": "50e24e1fb79e89116e939d90aa7738f7af48c442fa1bc2510131e0b39c50348e",
+      "arch": "aarch64",
+      "cpus": 2,
+      "diskGB": 20,
+      "screen": true,
+      "cloudInit": "#cloud-config\npassword: ${PASSWORD}\nchpasswd: {expire: false}\nssh_pwauth: true\n"
+    }
+  }
+}

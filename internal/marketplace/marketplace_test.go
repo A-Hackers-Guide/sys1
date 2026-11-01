@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
@@ -84,5 +85,21 @@ func TestApplyInputs(t *testing.T) {
 	}
 	if got := m.Apply(map[string]string{"IMAGE": "nginx"}).Image; got != "nginx" {
 		t.Fatalf("value not applied: %q", got)
+	}
+}
+
+func TestCloudInitInputsAreQuoted(t *testing.T) {
+	m := Manifest{Name: "vm", Version: "1", Title: "VM", Inputs: []Input{{Name: "PASSWORD", Label: "p"}},
+		Run: protocol.TaskSpec{Kind: protocol.KindVM, MemoryMB: 512, VM: &protocol.VMSpec{
+			Image: "https://x/os.img", SHA256: strings.Repeat("a", 64), CloudInit: "#cloud-config\npassword: ${PASSWORD}\n"}}}
+	spec := m.Apply(map[string]string{"PASSWORD": "a\"b\nruncmd: [rm, -rf, /]"})
+	if !strings.Contains(spec.VM.CloudInit, `password: "a\"b\nruncmd: [rm, -rf, /]"`) {
+		t.Fatalf("input not quoted: %q", spec.VM.CloudInit)
+	}
+	if strings.Contains(spec.VM.CloudInit, "\nruncmd") {
+		t.Fatal("an input broke out of its field")
+	}
+	if m.Run.VM.CloudInit == spec.VM.CloudInit {
+		t.Fatal("the manifest itself was changed")
 	}
 }

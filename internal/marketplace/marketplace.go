@@ -137,6 +137,18 @@ func (m Manifest) Apply(values map[string]string) protocol.TaskSpec {
 			spec.Env[k] = sub(v)
 		}
 	}
+	if m.Run.VM != nil {
+		// In cloud-init YAML, inputs become quoted strings, so a value
+		// can't break out of its field.
+		vm := *m.Run.VM
+		ci := vm.CloudInit
+		for k, v := range vals {
+			q, _ := json.Marshal(v)
+			ci = strings.ReplaceAll(ci, "${"+k+"}", string(q))
+		}
+		vm.CloudInit = ci
+		spec.VM = &vm
+	}
 	return spec
 }
 

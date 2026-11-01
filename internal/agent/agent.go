@@ -14,6 +14,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -208,6 +209,9 @@ func (a *Agent) refuse(t protocol.Task) string {
 	case protocol.KindExec:
 		if a.cfg.Trust != protocol.TrustOwner {
 			return "native programs are not allowed on this machine"
+		}
+		if _, err := exec.LookPath(t.Spec.Command[0]); err != nil {
+			return t.Spec.Command[0] + " isn't installed on this machine"
 		}
 	case protocol.KindContainer:
 		if !a.last.HasContainers() {

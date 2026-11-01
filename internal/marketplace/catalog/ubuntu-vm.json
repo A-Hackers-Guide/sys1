@@ -1,0 +1,31 @@
+{
+  "name": "ubuntu-vm",
+  "version": "1.0.0",
+  "title": "Ubuntu Server VM",
+  "description": "A full Ubuntu 24.04 server as a virtual machine, on one of your own machines with QEMU. Its disk moves with it if the machine goes away. Log in as ubuntu, over SSH on port 2222 or on its screen from the dashboard. Runs natively on Intel and AMD machines.",
+  "category": "Virtual machines",
+  "icon": "🐧",
+  "author": "sys1",
+  "homepage": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/",
+  "inputs": [
+    {"name": "PASSWORD", "label": "Password for the ubuntu user", "secret": true}
+  ],
+  "run": {
+    "kind": "vm",
+    "network": true,
+    "ports": ["2222:22"],
+    "volumes": ["/disk"],
+    "memoryMB": 2048,
+    "service": true,
+    "snapshotSeconds": 600,
+    "vm": {
+      "image": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img",
+      "sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+      "arch": "x86_64",
+      "cpus": 2,
+      "diskGB": 20,
+      "screen": true,
+      "cloudInit": "#cloud-config\npassword: ${PASSWORD}\nchpasswd: {expire: false}\nssh_pwauth: true\n"
+    }
+  }
+}

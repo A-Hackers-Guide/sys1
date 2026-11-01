@@ -317,6 +317,9 @@ func containerArgs(t protocol.Task, name, dir, rt string, trust protocol.Trust, 
 	if s.MemoryMB > 0 {
 		args = append(args, "--memory", strconv.Itoa(s.MemoryMB)+"m")
 	}
+	if s.ShmMB > 0 {
+		args = append(args, "--shm-size", strconv.Itoa(s.ShmMB)+"m")
+	}
 	switch {
 	case sb != nil:
 		// Behind the sandbox gateway: no direct route, no published ports.

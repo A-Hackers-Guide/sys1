@@ -139,6 +139,7 @@ type TaskSpec struct {
 	Network         bool     `json:"network"`
 	CPU             float64  `json:"cpu,omitempty"`       // cores, 0 = no limit
 	MemoryMB        int      `json:"memoryMB,omitempty"`  // 0 = no limit
+	ShmMB           int      `json:"shmMB,omitempty"`     // shared memory for containers (desktops and browsers need it)
 	GPU             bool     `json:"gpu,omitempty"`       // prefer and use a GPU when available
 	MinVRAMMB       int      `json:"minVramMB,omitempty"` // only run where a usable GPU has this much free memory
 	Service         bool     `json:"service,omitempty"`   // runs forever and is restarted on exit
@@ -282,6 +283,9 @@ func (s TaskSpec) Validate() error {
 		if h != "*" && !validEgressHost(h) {
 			return fmt.Errorf("invalid egress host %q", h)
 		}
+	}
+	if s.ShmMB < 0 || s.ShmMB > 16384 {
+		return errors.New("shmMB out of range")
 	}
 	if s.MinVRAMMB < 0 {
 		return errors.New("minVramMB cannot be negative")

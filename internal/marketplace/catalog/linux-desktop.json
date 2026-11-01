@@ -1,0 +1,27 @@
+{
+  "name": "linux-desktop",
+  "version": "1.0.0",
+  "title": "Linux desktop in your browser",
+  "description": "A full Ubuntu desktop (XFCE) you use from any web browser, on port 3000. Its home folder moves with it. Protected by the user name and password you choose here.",
+  "category": "Remote desktops",
+  "icon": "🖥️",
+  "author": "sys1",
+  "homepage": "https://docs.linuxserver.io/images/docker-webtop/",
+  "inputs": [
+    {"name": "DESKTOP_USER", "label": "User name", "default": "me"},
+    {"name": "DESKTOP_PASSWORD", "label": "Password", "secret": true}
+  ],
+  "run": {
+    "kind": "container",
+    "image": "lscr.io/linuxserver/webtop:ubuntu-xfce",
+    "env": {"CUSTOM_USER": "${DESKTOP_USER}", "PASSWORD": "${DESKTOP_PASSWORD}", "PUID": "1000", "PGID": "1000", "TZ": "Etc/UTC"},
+    "network": true,
+    "ports": ["3000:3000"],
+    "volumes": ["/config"],
+    "memoryMB": 4096,
+    "shmMB": 1024,
+    "service": true,
+    "ownerOnly": true,
+    "egress": ["*"]
+  }
+}

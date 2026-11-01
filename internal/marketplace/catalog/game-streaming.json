@@ -1,0 +1,19 @@
+{
+  "name": "game-streaming",
+  "version": "1.0.0",
+  "title": "Game streaming host (Sunshine)",
+  "description": "Turns one of your gaming PCs into a cloud gaming host: play its games on any phone, tablet, TV or laptop with the free Moonlight app. Install Sunshine (lizardbyte.dev) on the machine first; the pool picks your machine with the most GPU memory. Experimental.",
+  "category": "Gaming",
+  "icon": "🎮",
+  "author": "sys1",
+  "homepage": "https://app.lizardbyte.dev/Sunshine/",
+  "run": {
+    "kind": "exec",
+    "command": ["sunshine"],
+    "os": ["windows", "linux", "darwin"],
+    "network": true,
+    "gpu": true,
+    "minVramMB": 2000,
+    "service": true
+  }
+}
