@@ -37,7 +37,7 @@ func OpenLogger(dataDir, name string, verbose bool) (*slog.Logger, io.Closer) {
 			os.Rename(path, path+".old")
 		}
 		if f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
-			w, c = io.MultiWriter(os.Stderr, f), f
+			w, c = logWriter{f}, f
 		}
 	}
 	level := slog.LevelInfo
@@ -45,6 +45,16 @@ func OpenLogger(dataDir, name string, verbose bool) (*slog.Logger, io.Closer) {
 		level = slog.LevelDebug
 	}
 	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level})), c
+}
+
+// logWriter writes to the log file and, when there is one, the terminal.
+// io.MultiWriter would stop at the first failing writer, and a Windows
+// service has no stderr, so the file would never be written.
+type logWriter struct{ f *os.File }
+
+func (w logWriter) Write(p []byte) (int, error) {
+	os.Stderr.Write(p)
+	return w.f.Write(p)
 }
 
 // SignalContext is cancelled on Ctrl+C or a termination signal.
@@ -60,6 +70,8 @@ type Service struct {
 	Args                           []string
 	// Run does the work until ctx is cancelled.
 	Run func(ctx context.Context) error
+
+	exe string // the binary the service runs, when not this one
 }
 
 type program struct {
@@ -101,6 +113,7 @@ func UserService() bool {
 
 func (s *Service) build() (service.Service, error) {
 	cfg := &service.Config{
+		Executable:  s.exe,
 		Name:        s.Name,
 		DisplayName: s.DisplayName,
 		Description: s.Description,
@@ -132,6 +145,11 @@ func (s *Service) RunManaged() error {
 // Install registers the service (replacing an old registration) and
 // starts it.
 func (s *Service) Install() error {
+	exe, err := systemCopy()
+	if err != nil {
+		return friendly(err)
+	}
+	s.exe = exe
 	svc, err := s.build()
 	if err != nil {
 		return err

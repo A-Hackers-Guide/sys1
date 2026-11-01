@@ -6,8 +6,11 @@ All notable changes are listed here. Versions follow [semantic versioning](https
 
 ### Fixed
 
-- When a node can't be reached, the log now says what went wrong at every address, not only the last one, and on a Mac it recognizes **Local Network privacy** blocking sys0 and says how to fix it.
+- When a node can't be reached, the log now says what went wrong at every address, not only the last one, and on a Mac it recognizes **Local Network privacy** blocking sys0 and says how to fix it ([#32](https://github.com/A-Hackers-Guide/sys1/issues/32)).
 - On a Mac, `sudo sys0 install` moves an existing per-user sys0 to a system service, keeping its pool and data. System services aren't subject to Local Network privacy, which otherwise asks again after every update.
+- On Windows, `sys0 install` and `sys1 install` copy the programs to `C:\Program Files\sys1` and run the service from there, not from the user's folder, which any program running as that user could change ([#33](https://github.com/A-Hackers-Guide/sys1/issues/33)).
+- On Windows the log file stayed empty when running as a service: a service has no console, and the log stopped at the first place it couldn't write ([#34](https://github.com/A-Hackers-Guide/sys1/issues/34)).
+- sys0.exe and sys1.exe now carry Windows version information; Windows Security's machine-learning scan had quarantined an unsigned sys1.exe as a trojan. The dashboard now also says when a machine's program file was removed while running, as antivirus quarantine does ([#35](https://github.com/A-Hackers-Guide/sys1/issues/35)).
 
 ## [0.9.0] - 2026-11-01
 

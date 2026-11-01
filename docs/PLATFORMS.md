@@ -30,6 +30,12 @@ sudo sys0 install
 
 It moves your existing setup (same pool, same data) to a system service and removes the per-user one. sys0 still starts Docker Desktop in the signed-in person's session.
 
+## Windows: where the service lives
+
+`sys0 install` and `sys1 install` (run as Administrator) copy both programs to `C:\Program Files\sys1` and run the service from there. The service runs as SYSTEM, so its program must not sit in a folder an ordinary account can change, such as `%LOCALAPPDATA%\Programs\sys1`, where `install.ps1` puts the copy you run from a terminal. Installs made before 0.9.1 move there the next time you run `install` ([#33](https://github.com/A-Hackers-Guide/sys1/issues/33)).
+
+sys0 and sys1 aren't code-signed yet, and Windows Security's machine-learning scan has once mistaken sys1.exe for a trojan (`Trojan:Win32/Bearfoos.A!ml`) and removed it while it ran ([#35](https://github.com/A-Hackers-Guide/sys1/issues/35)). Since 0.9.1 both programs carry version information, which makes this less likely, and the dashboard says so if a program's file disappears while it is running. If it happens: open **Windows Security → Virus & threat protection → Protection history**, choose the sys1 entry and **Allow on device**, then run `sys1 install` again as Administrator.
+
 ## Running apps on each OS
 
 Most marketplace packages are **containers**:

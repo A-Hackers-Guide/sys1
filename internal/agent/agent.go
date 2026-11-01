@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
@@ -189,6 +190,9 @@ func (a *Agent) heartbeat(ctx context.Context) (protocol.HeartbeatResponse, erro
 		if p := a.engines.Problem(); p != "" {
 			res.Problems = append([]string{p}, res.Problems...)
 		}
+	}
+	if p := missingExe(); p != "" {
+		res.Problems = append([]string{p}, res.Problems...)
 	}
 	a.mu.Lock()
 	a.last = res
@@ -384,4 +388,22 @@ func (a *Agent) vmFor(id string) *vmProc {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.vms[id]
+}
+
+// missingExe notices this program's file was removed while it runs, which
+// is what antivirus quarantine looks like: it keeps working until the next
+// restart, then can't start at all.
+func missingExe() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if _, err := os.Stat(exe); !errors.Is(err, fs.ErrNotExist) {
+		return ""
+	}
+	why := "Something removed " + filepath.Base(exe) + " while it was running, so it won't start again after a restart."
+	if runtime.GOOS == "windows" {
+		why += " If Windows Security quarantined it, open Windows Security → Virus & threat protection → Protection history, choose Allow on device, then reinstall sys1."
+	}
+	return why
 }
