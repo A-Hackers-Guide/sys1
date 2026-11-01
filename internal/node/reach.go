@@ -18,6 +18,10 @@ import (
 // Settings are the node owner's choices, kept in the journal.
 type Settings struct {
 	Internet bool `json:"internet"` // open the client API port on the router
+	// Cluster runs this node as a cluster member from now on, as --cluster
+	// does; NoAutoStandby stops it picking a standby and witness itself.
+	Cluster       bool `json:"cluster,omitempty"`
+	NoAutoStandby bool `json:"noAutoStandby,omitempty"`
 }
 
 // InternetStatus describes the router mapping for the dashboard.

@@ -113,6 +113,23 @@ func (n *Node) guiHandler(addr string) http.Handler {
 		}
 		writeJSON(w, map[string]string{"code": code})
 	}))
+	mux.HandleFunc("POST /api/cluster/enable", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		if err := n.EnableCluster(); err != nil {
+			replyErr(w, err)
+			return
+		}
+		writeJSON(w, struct{}{})
+	}))
+	mux.HandleFunc("POST /api/cluster/auto-standby", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			On bool `json:"on"`
+		}
+		if !readJSON(w, r, 4096, &req) {
+			return
+		}
+		n.SetAutoStandby(req.On)
+		writeJSON(w, struct{}{})
+	}))
 	mux.HandleFunc("POST /api/cluster/prefer", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Node string `json:"node"`

@@ -111,6 +111,8 @@ A crash report from an earlier run of sys0 (see [Crash reports](CRASHES.md)): `{
 
 A standby node answers every other client request with **421 Misdirected Request**; clients then try the next address. Heartbeat responses carry `nodeAddrs`, the addresses the node can currently be reached on, and clients adopt them.
 
+An owner's machine reports `canHost` in its resources when sys1 is installed beside sys0 and sys0 may install services, and `hosting` once it is a cluster member. A heartbeat response may carry `host: {"role": "standby" | "witness", "code": "sys1-cluster:…"}`; the machine then runs `sys1 cluster join [--witness] <code>` and `sys1 install --cluster`, once per code. See [Clusters](CLUSTER.md#a-standby-and-a-witness).
+
 ### `GET /healthz`
 
 → `200 ok`

@@ -56,6 +56,8 @@ Usage:
         --no-service          do not install the background service
   sys0 auto-update on|off   turn automatic updates on or off (default on)
   sys0 crash-reports on|off send crash reports to the node (default on)
+  sys0 standby on|off       let the pool make this machine its standby node or witness
+                            when sys1 is installed too (default on, your own machines only)
   sys0 keep-engines-running on|off
                             start Docker Desktop (or OrbStack, Podman…) and keep it
                             running (default: on for your own machines)
@@ -166,7 +168,7 @@ func main() {
 		err = svc.RunManaged()
 	case "update":
 		err = updateNow(updater(*dataDir, log), svc)
-	case "auto-update", "crash-reports", "keep-engines-running":
+	case "auto-update", "crash-reports", "keep-engines-running", "standby":
 		err = setSwitch(*dataDir, cmd, positional)
 	case "egress-proxy":
 		err = egressProxy(*listenAddr, *allow, forwards)
@@ -314,13 +316,15 @@ func setSwitch(dataDir, name string, args []string) error {
 		cfg.NoAutoUpdate = off
 	case "crash-reports":
 		cfg.NoCrashReports = off
+	case "standby":
+		cfg.NoHosting = off
 	default:
 		cfg.KeepEngines = args[0]
 	}
 	if err := agent.SaveConfig(dataDir, cfg); err != nil {
 		return err
 	}
-	fmt.Printf("%s %s. Restart sys0 to apply: sys0 restart\n", map[string]string{"auto-update": "Automatic updates are", "crash-reports": "Crash reports are", "keep-engines-running": "Keeping container engines running is"}[name], args[0])
+	fmt.Printf("%s %s. Restart sys0 to apply: sys0 restart\n", map[string]string{"auto-update": "Automatic updates are", "crash-reports": "Crash reports are", "keep-engines-running": "Keeping container engines running is", "standby": "Letting the pool make this machine a standby node or witness is"}[name], args[0])
 	return nil
 }
 

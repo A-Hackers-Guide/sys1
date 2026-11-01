@@ -141,6 +141,10 @@ func main() {
 	}
 	u := &update.Updater{App: "sys1", Current: version.Version, DataDir: *dataDir, Log: log}
 	cfg.Updates, cfg.OnUpdateNow = "automatic", u.Kick
+	if !cli.Interactive() {
+		// As a service: exit, and the service manager starts it again.
+		cfg.Restart = func() { os.Exit(1) }
+	}
 	if *noAutoUpdate {
 		cfg.Updates = "off (started with --no-auto-update)"
 	} else if why := u.Allowed(); why != "" {

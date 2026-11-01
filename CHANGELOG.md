@@ -9,6 +9,11 @@ sys1 1.0: a pool that keeps running when its main computer doesn't. From this re
 ### Added
 
 - **Standby nodes** ([#39](https://github.com/A-Hackers-Guide/sys1/issues/39)): a second node keeps a live copy of the pool and takes over within seconds when the main node goes down, then hands back when it returns and is steady. A **witness** (`sys1 cluster join --witness`) on any third machine breaks ties, so a broken link never leaves two nodes in charge. `sys1 cluster prefer <node>` or **Make preferred** on the dashboard picks which node leads when it can. See [Clusters](docs/CLUSTER.md#a-standby-and-a-witness).
+- **Protect this pool** on the dashboard: the node turns cluster mode on and picks a standby and a witness from your own machines with sys1 installed, which set themselves up. `sys0 standby off` keeps a machine out.
+
+### Changed
+
+- A cluster keeps its number of voting nodes odd. New nodes join without a vote and get one when that keeps the count odd, so a cluster of two no longer stops when either node is down ([#41](https://github.com/A-Hackers-Guide/sys1/issues/41)).
 
 ## [0.9.2] - 2026-11-01
 

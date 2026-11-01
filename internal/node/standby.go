@@ -82,6 +82,8 @@ func (n *Node) failback(ctx context.Context) {
 		case <-time.After(wait):
 		}
 		wait = n.raftPause()
+		n.balanceVoters()
+		n.chooseHosts()
 		id, addr, ok := n.failbackTarget()
 		if !ok {
 			continue

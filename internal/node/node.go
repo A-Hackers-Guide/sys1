@@ -56,6 +56,9 @@ type Config struct {
 	Updates string
 	// OnUpdateNow makes the node itself check for a new version now.
 	OnUpdateNow func()
+	// Restart starts the node again (as a service, by exiting so the
+	// service manager restarts it). Nil when it can't.
+	Restart func()
 	// CrashIntake receives crash reports (default crash.DefaultIntake; the
 	// SYS1_CRASH_INTAKE environment variable overrides both, "" turns it off).
 	CrashIntake string
@@ -90,6 +93,7 @@ type Node struct {
 	cl          *cluster
 	raftAddr    string
 	pendingSeed bool
+	hostOrders  map[string]hostOrder // by agent ID: asked to be a standby or witness
 
 	crashes       *crash.Store
 	scrubber      *crash.Scrubber
@@ -227,6 +231,11 @@ func (n *Node) Serve(ctx context.Context, ready func(apiAddr, guiAddr string)) e
 	}
 	n.mu.Lock()
 	n.cfg.ListenAddr = apiLn.Addr().String()
+	n.mu.Unlock()
+	n.mu.Lock()
+	if n.settings.Cluster {
+		n.cfg.Cluster = true
+	}
 	n.mu.Unlock()
 	if n.cfg.Cluster {
 		if n.cfg.RaftAddr == "" {
@@ -462,6 +471,7 @@ func (n *Node) handleHeartbeat(w http.ResponseWriter, r *http.Request, a *Agent)
 	n.storageHeartbeatLocked(a, req.Storage, &resp, now)
 	resp.NodeAddrs = n.addrsLocked()
 	resp.UpdateNow = n.updateNow
+	resp.Host = n.hostOrderLocked(a)
 	writeJSON(w, resp)
 }
 

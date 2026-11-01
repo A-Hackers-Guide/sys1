@@ -272,9 +272,11 @@ async function renderNodes(s) {
   }
   const box = $("#nodes");
   if (!c.enabled) {
-    fill(box, h("p", { class: "muted" }, "This is a single node. To keep the pool running if this machine fails, run 2 more nodes as a cluster (3 in total, so any one can fail): restart this node with "),
-      h("pre", {}, h("code", {}, "sys1 --cluster")),
-      h("p", { class: "muted small" }, "then add the others from here. See docs/CLUSTER.md."));
+    fill(box, h("p", { class: "muted" }, "This is a single node: if this computer goes down, the pool waits for it. "
+      + "Protect the pool, and this node picks two of your own machines that have sys1 installed: one becomes a standby that takes over "
+      + "while this computer is down, the other a witness that settles which node is in charge. This node restarts once."),
+      h("button", { onclick: protectPool }, "Protect this pool"),
+      h("p", { class: "muted small" }, "Or set nodes up yourself: see docs/CLUSTER.md."));
     return;
   }
   const rows = (c.members || []).map((m) => h("div", { class: "item" },
@@ -286,15 +288,25 @@ async function renderNodes(s) {
     c.leading && !m.witness && m.voter && m.id !== c.preferred &&
       h("button", { class: "small", onclick: () => prefer(m) }, "Make preferred"),
     h("span", { class: "chip " + (m.leader ? "ok" : m.voter ? "accent" : "warn") },
-      m.leader ? "Leading" : !m.voter ? "Joining" : m.witness ? "Witness" : "Standby")));
+      m.leader ? "Leading" : !m.voter ? "Live copy" : m.witness ? "Witness" : "Standby")));
   if (box.dataset.code === undefined && c.leading) {
     box.dataset.code = "";
     try { box.dataset.code = (await api("/api/cluster/code")).code; } catch {}
   }
   const code = box.dataset.code;
   fill(box, rows,
+    c.leading && h("p", { class: "muted small" }, c.autoStandby
+      ? "This node picks a standby and a witness from your machines with sys1 installed, if it lacks one. A copy without a vote gets one once there is also a witness (votes stay odd, so a tie can't stop the pool)."
+      : "Picking a standby and witness automatically is off."),
     c.leading && code && h("p", { class: "muted small" }, "To add a node, run this on it, then start it with sys1 --cluster. For a witness (any small machine; it only votes), add --witness after join:"),
     c.leading && code && h("pre", {}, h("code", {}, "sys1 cluster join " + code)));
+}
+
+async function protectPool() {
+  try {
+    await api("/api/cluster/enable", {});
+    toast("Restarting as a cluster; standby and witness are picked within a few minutes");
+  } catch (err) { toast(err.message); }
 }
 
 async function prefer(m) {
