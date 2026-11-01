@@ -2,6 +2,12 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+### Fixed
+
+- On a Mac, `sys0 install` without `sudo` now says it installed for you only, and that `sudo sys0 install` makes it a system service macOS doesn't keep off your local network ([#36](https://github.com/A-Hackers-Guide/sys1/issues/36)).
+
 ## [0.9.1] - 2026-11-01
 
 ### Fixed

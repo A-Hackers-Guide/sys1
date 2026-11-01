@@ -172,6 +172,11 @@ func main() {
 		err = egressProxy(*listenAddr, *allow, forwards)
 	case "install":
 		err = svc.Install()
+		if err == nil && runtime.GOOS == "darwin" && os.Geteuid() != 0 {
+			// A per-user agent is subject to Local Network privacy, which
+			// blocks sys0 from the LAN after every update until allowed.
+			fmt.Println("sys0 is running for you only. To run it as a system service, which macOS doesn't keep off your local network, use: sudo sys0 install")
+		}
 	case "uninstall":
 		err = svc.Uninstall()
 		if err == nil {
