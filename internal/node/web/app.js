@@ -84,6 +84,7 @@ function show(tab) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== "tab-" + tab));
   if (tab === "market") loadCatalog();
   if (tab === "storage") loadStorage();
+  if (tab === "machines") loadCrashes();
   try { localStorage.setItem("sys1.tab", tab); } catch {}
 }
 document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
@@ -471,6 +472,37 @@ $("#show-key").addEventListener("click", async () => {
   } catch (err) { toast(err.message); }
 });
 
+// ---- crash reports ----
+async function loadCrashes() {
+  let c;
+  try { c = await api("/api/crashes"); } catch { return; }
+  const sw = $("#crash-sending");
+  sw.checked = c.sending;
+  sw.disabled = !c.automatic;
+  $("#crash-sending-text").textContent = c.automatic
+    ? "Send new crashes to the sys1 project, which files them as GitHub issues"
+    : "Automatic sending isn't available yet: use \u201cReport on GitHub\u201d to file a crash yourself";
+  const open = new Set([...document.querySelectorAll("#crashes details[open]")].map((d) => d.dataset.sig));
+  fill($("#crashes"), c.crashes.length ? c.crashes.map((e) =>
+    h("details", { class: "crash", "data-sig": e.signature, open: open.has(e.signature) },
+      h("summary", {},
+        h("strong", {}, `${e.app} ${e.version}`), ` on ${OS_NAME[e.os] || e.os} ${e.arch} · `,
+        e.count > 1 ? `${e.count} times, last ` : "", ago(e.last), " · ", e.message || "crash"),
+      h("pre", { class: "small" }, e.message + "\n\n" + (e.frames || []).join("\n")),
+      h("div", { class: "actions" },
+        e.issue ? h("a", { class: "button ghost", href: e.issue, target: "_blank", rel: "noopener" }, "Open the issue")
+          : e.sentCount ? h("span", { class: "chip ok" }, "Sent")
+          : h("a", { class: "button ghost", href: e.link, target: "_blank", rel: "noopener" }, "Report on GitHub"),
+        h("button", { class: "ghost", onclick: async () => {
+          try { await api(`/api/crashes/${e.signature}/forget`, {}); loadCrashes(); } catch (err) { toast(err.message); }
+        } }, "Dismiss"))))
+    : h("p", { class: "muted" }, "No crashes. 🎉"));
+}
+$("#crash-sending").addEventListener("change", async (ev) => {
+  try { await api("/api/crashes/sending", { on: ev.target.checked }); toast(ev.target.checked ? "Crash reports on" : "Crash reports off"); }
+  catch (err) { toast(err.message); }
+});
+
 // ---- live updates ----
 async function refresh() {
   try {
@@ -499,4 +531,4 @@ try { const t = localStorage.getItem("sys1.tab"); if (t && document.getElementBy
 loadCatalog();
 refresh();
 setInterval(refresh, 2000);
-setInterval(() => { if (current === "market") loadCatalog(); }, 10000);
+setInterval(() => { if (current === "market") loadCatalog(); if (current === "machines") loadCrashes(); }, 10000);

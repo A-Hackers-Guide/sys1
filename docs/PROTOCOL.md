@@ -98,6 +98,10 @@ Unknown or removed machines get `401`.
 
 Heartbeats carry a `storage` report (`quotaBytes`, `usedBytes`, `chunks`, plus `stored` and `missing` chunk IDs since the last one). Responses may carry `fetch`, `upload`, `drop` (chunk IDs), `inventory`, `backups`, `restores`, and `hurry` (heartbeat again in about a second). Task assignments for apps with volumes carry `dataKey` and `restore` (the snapshot to restore first). See [Storage](STORAGE.md).
 
+### `POST /api/v1/crash`
+
+A crash report from an earlier run of sys0 (see [Crash reports](CRASHES.md)): `{"app", "version", "os", "arch", "signature", "message", "frames", "count", "first", "last"}`. The node refuses reports that don't have exactly this shape (400) and scrubs the message again. Clients send queued reports about every 10 minutes and delete them once accepted or refused.
+
 ### Clusters
 
 | Endpoint | Purpose |

@@ -58,6 +58,14 @@
       <p class="muted">Every machine running sys0 lends its spare capacity at the lowest priority, so its owner never notices.</p>
     </div>
     <div id="machines" class="cards"></div>
+    <div class="section-head">
+      <h2>Crash reports</h2>
+      <p class="muted">When sys0 or sys1 crashes on any machine, the report lands here with nothing personal in it: no names, addresses, paths or app data, only the version, OS and where in sys1's code it happened.</p>
+    </div>
+    <div class="panel">
+      <label class="switch"><input type="checkbox" id="crash-sending"> <span id="crash-sending-text">Send new crashes to the sys1 project, which files them as GitHub issues</span></label>
+      <div id="crashes"></div>
+    </div>
   </section>
 
   <section id="tab-apps" class="tab hidden">

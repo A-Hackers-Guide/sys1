@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/A-Hackers-Guide/sys1/internal/crash"
 	"github.com/A-Hackers-Guide/sys1/internal/journal"
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
 	"github.com/A-Hackers-Guide/sys1/internal/resources"
@@ -38,9 +39,11 @@ type Agent struct {
 	cfg     Config
 	dataDir string
 	log     *slog.Logger
-	c       *client
-	outbox  *journal.Journal
-	st      *agentStorage
+
+	crashesSent time.Time
+	c           *client
+	outbox      *journal.Journal
+	st          *agentStorage
 
 	mu       sync.Mutex
 	running  map[string]*taskRun
@@ -98,6 +101,18 @@ func tasksDir(dataDir string) string {
 
 // Run reports to the node until ctx is cancelled. Network trouble never
 // stops it; it backs off and keeps trying, and running tasks carry on.
+// sendCrashes hands crash reports from earlier runs to the node.
+func (a *Agent) sendCrashes(ctx context.Context) {
+	reports, done := crash.Queued(a.dataDir)
+	for i, r := range reports {
+		err := a.c.post(ctx, "/api/v1/crash", r, nil)
+		var se *StatusError
+		if err == nil || (errors.As(err, &se) && se.Code == http.StatusBadRequest) {
+			done[i]()
+		}
+	}
+}
+
 func (a *Agent) Run(ctx context.Context) error {
 	defer a.shutdown()
 	a.log.Info("sys0 running", "node", a.cfg.NodeAddr, "name", a.cfg.Name, "trust", a.cfg.Trust, "version", version.Version)
@@ -121,6 +136,10 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 		default:
 			backoff = time.Second
+			if !a.cfg.NoCrashReports && time.Since(a.crashesSent) > 10*time.Minute {
+				a.crashesSent = time.Now()
+				go a.sendCrashes(ctx)
+			}
 			a.followNode(resp.NodeAddrs)
 			a.apply(ctx, resp)
 			a.st.apply(ctx, resp)

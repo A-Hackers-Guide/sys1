@@ -94,6 +94,18 @@ func (n *Node) guiHandler(addr string) http.Handler {
 		writeJSON(w, map[string]string{"code": code})
 	}))
 	mux.HandleFunc("GET /api/storage", n.guiAuth(n.handleStorage))
+	mux.HandleFunc("GET /api/crashes", n.guiAuth(n.handleCrashes))
+	mux.HandleFunc("POST /api/crashes/sending", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ On bool }
+		if readJSON(w, r, 1<<10, &req) {
+			n.crashes.SetSending(req.On)
+			writeJSON(w, struct{}{})
+		}
+	}))
+	mux.HandleFunc("POST /api/crashes/{sig}/forget", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
+		n.crashes.Forget(r.PathValue("sig"))
+		writeJSON(w, struct{}{})
+	}))
 	mux.HandleFunc("GET /api/storage/recovery-key", n.guiAuth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"key": n.RecoveryKey()})
 	}))

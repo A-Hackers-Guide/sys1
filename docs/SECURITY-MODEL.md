@@ -72,6 +72,14 @@ The dashboard can control the whole pool, so:
 - Every package shows its permissions in plain words before deploy ("Uses the network", "Opens port 8096"…).
 - Builtin package names cannot be shadowed by third-party ones.
 
+## Updates
+
+sys0 and sys1 install a new version only if `checksums.txt` carries a Sigstore signature from this repository's release workflow on a version tag, logged in Sigstore's transparency log, and the archive matches its checksum. There's no long-lived signing key to steal; a compromised GitHub account could still publish a release through the real workflow, and that release would be visible in the public log. A version that keeps failing to start is rolled back. See [Automatic updates](UPDATES.md).
+
+## Crash reports
+
+Reports carry only an app, version, OS, CPU, a scrubbed message and Go stack frames. They are scrubbed on the machine, checked and scrubbed again by the node and by the project's intake, and the intake alone holds a GitHub token (issues only, one repository). Lenders and pool owners can turn them off. See [Crash reports](CRASHES.md).
+
 ## Threat model: honest limits
 
 | Threat | Status |

@@ -115,6 +115,8 @@ go build ./cmd/sys0 && go build ./cmd/sys1
 | [Batch, groups, GPUs](docs/BATCH.md) | Splitting work and AI models across machines |
 | [VMs, desktops and gaming](docs/VMS.md) | Virtual machines, screens in the browser, game streaming |
 | [Clusters and reaching the node](docs/CLUSTER.md) | Joining from anywhere; several nodes so none is a single point of failure |
+| [Automatic updates](docs/UPDATES.md) | How sys0 and sys1 update themselves, verified, with rollback |
+| [Crash reports](docs/CRASHES.md) | What a crash report contains (nothing personal) and where it goes |
 | [Security model](docs/SECURITY-MODEL.md) | Trust levels, sandboxing, what a malicious node or client can and cannot do |
 | [Marketplace packages](docs/PACKAGES.md) | Package format, signing, publishing |
 | [Protocol](docs/PROTOCOL.md) | The client ⇄ node API |

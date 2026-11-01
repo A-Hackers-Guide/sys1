@@ -27,6 +27,10 @@ type Config struct {
 	// internet freely. Off: they reach only the hosts their package lists,
 	// through sys0's gateway.
 	OpenInternet bool `json:"openInternet,omitempty"`
+	// NoAutoUpdate turns off automatic updates (see internal/update).
+	NoAutoUpdate bool `json:"noAutoUpdate,omitempty"`
+	// NoCrashReports keeps crash reports on this machine (see internal/crash).
+	NoCrashReports bool `json:"noCrashReports,omitempty"`
 }
 
 // DefaultStorageGB is lent when the owner has not chosen a size.

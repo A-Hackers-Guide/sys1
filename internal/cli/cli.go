@@ -207,3 +207,7 @@ func isAccessDenied(err error) bool {
 	}
 	return false
 }
+
+// Interactive reports whether the app was started from a terminal rather
+// than by the OS service manager.
+func Interactive() bool { return service.Interactive() }

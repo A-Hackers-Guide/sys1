@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/A-Hackers-Guide/sys1/internal/crash"
 	"github.com/A-Hackers-Guide/sys1/internal/journal"
 	"github.com/A-Hackers-Guide/sys1/internal/marketplace"
 	"github.com/A-Hackers-Guide/sys1/internal/nat"
@@ -50,6 +51,9 @@ type Config struct {
 	Cluster  bool
 	RaftAddr string
 	FastRaft bool // short Raft timeouts, for tests
+	// CrashIntake receives crash reports (default crash.DefaultIntake; the
+	// SYS1_CRASH_INTAKE environment variable overrides both, "" turns it off).
+	CrashIntake string
 }
 
 type Node struct {
@@ -78,10 +82,14 @@ type Node struct {
 	cl          *cluster
 	raftAddr    string
 	pendingSeed bool
+
+	crashes  *crash.Store
+	scrubber *crash.Scrubber
 }
 
 func New(cfg Config, log *slog.Logger) (*Node, error) {
-	n := &Node{cfg: cfg, log: log, agents: map[string]*Agent{}, tasks: map[string]*Task{}, jobs: map[string]*Job{}, started: time.Now()}
+	n := &Node{cfg: cfg, log: log, agents: map[string]*Agent{}, tasks: map[string]*Task{}, jobs: map[string]*Job{}, started: time.Now(),
+		crashes: crash.OpenStore(cfg.DataDir), scrubber: crash.NewScrubber(cfg.DataDir)}
 	var err error
 	if n.cert, err = tlsutil.LoadOrCreate(cfg.DataDir); err != nil {
 		return nil, err
@@ -209,6 +217,7 @@ func (n *Node) Serve(ctx context.Context, ready func(apiAddr, guiAddr string)) e
 	go func() { errc <- api.Serve(apiLn) }()
 	go func() { errc <- gui.Serve(guiLn) }()
 	go n.loop(ctx)
+	go (&crash.Sender{Store: n.crashes, Intake: n.crashIntake(), Log: n.log}).Loop(ctx)
 	if ready != nil {
 		ready(apiLn.Addr().String(), guiLn.Addr().String())
 	}
@@ -270,6 +279,7 @@ func (n *Node) apiHandler() http.Handler {
 	mux.HandleFunc("POST /api/v1/inventory", n.withAgent(n.handleInventory))
 	mux.HandleFunc("POST /api/v1/snapshot", n.withAgent(n.handleSnapshot))
 	mux.HandleFunc("POST /api/v1/restore-result", n.withAgent(n.handleRestoreResult))
+	mux.HandleFunc("POST /api/v1/crash", n.withAgent(n.handleCrash))
 	mux.HandleFunc("POST /api/v1/cluster/join", n.handleClusterJoin)
 	mux.HandleFunc("POST /api/v1/cluster/add", n.handleClusterAdd)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })

@@ -2,6 +2,14 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- **Automatic updates** for sys0 and sys1: daily checks with jitter, installed only when `checksums.txt` has a Sigstore signature from this repository's release workflow and the archive matches its checksum; atomic swap, restart through the service manager, automatic rollback when a new version keeps failing to start. Package-manager, container and mobile installs are left to their updater. `sys0 auto-update on|off`, `--no-auto-update`, `sys0 update`, `sys1 update`. docs/UPDATES.md.
+- **Crash reports**: the panic and crashing goroutine of every sys0 and sys1 crash, scrubbed of names, addresses, paths, codes and secrets; machines hand them to their node; **Machines → Crash reports** on the dashboard, with a prefilled "Report on GitHub" link; nodes forward them to the project's crash intake (`intake/`, a Cloudflare Worker that alone holds a GitHub token) which files one `crash` issue per bug. `sys0 crash-reports on|off`, `--no-crash-reports`, a dashboard switch. docs/CRASHES.md.
+- Release checksums are signed with Sigstore (`checksums.txt.sigstore.json`), from v0.7.0 on.
+
 ## [0.7.0] - 2026-11-01
 
 More devices.

@@ -211,3 +211,8 @@ h2.spaced { margin-top: 24px; }
 
 .standby { margin-bottom: 20px; border-color: var(--warn); }
 .spaced-panel { margin-top: 20px; }
+
+.crash { border-top: 1px solid var(--line); padding: 10px 0; }
+.crash summary { cursor: pointer; overflow-wrap: anywhere; }
+.crash pre { margin: 10px 0; }
+#crashes { margin-top: 12px; }

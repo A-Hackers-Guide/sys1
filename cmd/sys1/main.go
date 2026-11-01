@@ -28,12 +28,14 @@ import (
 
 	"github.com/A-Hackers-Guide/sys1/internal/agent"
 	"github.com/A-Hackers-Guide/sys1/internal/cli"
+	"github.com/A-Hackers-Guide/sys1/internal/crash"
 	"github.com/A-Hackers-Guide/sys1/internal/marketplace"
 	"github.com/A-Hackers-Guide/sys1/internal/node"
 	"github.com/A-Hackers-Guide/sys1/internal/paths"
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
 	"github.com/A-Hackers-Guide/sys1/internal/resources"
 	"github.com/A-Hackers-Guide/sys1/internal/setup"
+	"github.com/A-Hackers-Guide/sys1/internal/update"
 	"github.com/A-Hackers-Guide/sys1/internal/version"
 )
 
@@ -50,6 +52,8 @@ Usage:
         --trust-key <key>     trust marketplace packages signed by this key (repeatable)
         --copies <n>          copies kept of app data in pooled storage (default 3)
         --staging-gb <n>      disk the node uses to pass data between machines (default 4)
+        --no-auto-update      don't install new versions automatically
+  sys1 update               install the latest version now
   sys1 open                 open the dashboard of a running node
   sys1 join-code            print the join code for new machines
   sys1 install|uninstall    run the node as a background service (starts at boot)
@@ -94,6 +98,7 @@ func main() {
 	raftAddr := fs.String("raft-addr", ":7444", "address for traffic between cluster nodes")
 	stagingGB := fs.Int("staging-gb", 4, "disk the node may use to pass chunks between machines")
 	verbose := fs.Bool("v", false, "verbose logging")
+	noAutoUpdate := fs.Bool("no-auto-update", false, "don't install new versions automatically")
 	var trustKeys multi
 	fs.Var(&trustKeys, "trust-key", "trusted package signing key")
 	fs.Usage = func() { fmt.Fprintf(os.Stderr, usage, paths.DataDir("sys1")) }
@@ -121,26 +126,48 @@ func main() {
 	if *clusterMode {
 		svcArgs = append(svcArgs, "--cluster", "--raft-addr", *raftAddr)
 	}
+	if *noAutoUpdate {
+		svcArgs = append(svcArgs, "--no-auto-update")
+	}
+	u := &update.Updater{App: "sys1", Current: version.Version, DataDir: *dataDir, Log: log}
+	run := func(ctx context.Context, quiet bool, restart bool) error {
+		work := func(ctx context.Context) error { return serve(ctx, cfg, log, quiet, !*noLocal) }
+		if *noAutoUpdate {
+			return work(ctx)
+		}
+		return u.Run(ctx, restart, work)
+	}
 	svc := &cli.Service{
 		Name:        "sys1",
 		DisplayName: "sys1 node",
 		Description: "The sys1 node: pools spare capacity from every connected machine.",
 		Args:        svcArgs,
 		Run: func(ctx context.Context) error {
-			return serve(ctx, cfg, log, true, !*noLocal)
+			return run(ctx, true, !cli.Interactive())
 		},
 	}
 
 	var err error
 	switch cmd {
 	case "serve":
+		if u.Startup() {
+			os.Exit(1) // went back to the previous version; let the service manager start it
+		}
+		if r := crash.Harvest(*dataDir, "sys1", version.Version); r != nil {
+			crash.OpenStore(*dataDir).Add(*r)
+		}
+		crash.Capture(*dataDir, "sys1")
 		if *noOpen && !*foreground {
 			err = svc.RunManaged()
 			break
 		}
 		ctx, cancel := cli.SignalContext()
-		err = serve(ctx, cfg, log, *noOpen, !*noLocal)
+		// In a container (--foreground) the image is updated instead; a
+		// terminal run picks up a new version the next time it starts.
+		err = run(ctx, *noOpen, false)
 		cancel()
+	case "update":
+		err = updateNow(u, svc)
 	case "open":
 		// Print the link too: in a container or over SSH there is no browser.
 		url := "http://" + *gui + "/?key=" + node.GUIKey(*dataDir)
@@ -241,6 +268,27 @@ func runLocalAgent(ctx context.Context, n *node.Node, dir string, log *slog.Logg
 	}
 	a.FixedAddrs = !n.Clustered()
 	a.Run(ctx)
+}
+
+func updateNow(u *update.Updater, svc *cli.Service) error {
+	if why := u.Allowed(); why != "" {
+		return errors.New("this install can't update itself: " + why)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	v, err := u.Once(ctx)
+	if err != nil {
+		return err
+	}
+	if v == "" {
+		fmt.Println("sys1", u.Current, "is the latest version.")
+		return nil
+	}
+	fmt.Println("Installed sys1", v+".")
+	if svc.Status() == "running" {
+		return svc.Control("restart")
+	}
+	return nil
 }
 
 // printJoinCode reads the code a running node saved, without touching

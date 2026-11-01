@@ -23,12 +23,14 @@ import (
 
 	"github.com/A-Hackers-Guide/sys1/internal/agent"
 	"github.com/A-Hackers-Guide/sys1/internal/cli"
+	"github.com/A-Hackers-Guide/sys1/internal/crash"
 	"github.com/A-Hackers-Guide/sys1/internal/egress"
 	"github.com/A-Hackers-Guide/sys1/internal/paths"
 	"github.com/A-Hackers-Guide/sys1/internal/priority"
 	"github.com/A-Hackers-Guide/sys1/internal/protocol"
 	"github.com/A-Hackers-Guide/sys1/internal/resources"
 	"github.com/A-Hackers-Guide/sys1/internal/setup"
+	"github.com/A-Hackers-Guide/sys1/internal/update"
 	"github.com/A-Hackers-Guide/sys1/internal/version"
 )
 
@@ -44,7 +46,12 @@ Usage:
         --storage-gb <n>      disk space to lend for pooled storage (default 10, 0 = none)
         --open-internet       let apps from other people's pools use this machine's
                               internet freely (default: only the hosts each app lists)
+        --no-auto-update      don't install new versions automatically
+        --no-crash-reports    keep crash reports on this machine
         --no-service          do not install the background service
+  sys0 auto-update on|off   turn automatic updates on or off (default on)
+  sys0 crash-reports on|off send crash reports to the node (default on)
+  sys0 update               install the latest version now
   sys0 run                  run in the foreground (what the service runs)
   sys0 status               show settings and service state
   sys0 install|uninstall    add or remove the background service
@@ -74,6 +81,8 @@ func main() {
 	storageGB := fs.Int("storage-gb", agent.DefaultStorageGB, "disk space to lend for pooled storage, in GB (0 = none)")
 	noBrowser := fs.Bool("no-browser", false, "do not open a browser")
 	openInternet := fs.Bool("open-internet", false, "let apps from other people's pools use this machine's internet freely")
+	noAutoUpdate := fs.Bool("no-auto-update", false, "don't install new versions automatically")
+	noCrashReports := fs.Bool("no-crash-reports", false, "keep crash reports on this machine")
 	listenAddr := fs.String("listen", ":3128", "egress-proxy: proxy address")
 	allow := fs.String("allow", "", "egress-proxy: hosts apps may reach, comma-separated")
 	var forwards multiFlag
@@ -118,7 +127,7 @@ func main() {
 			err = errors.New("usage: sys0 join <join code>")
 			break
 		}
-		err = join(positional[0], *dataDir, *name, protocol.Trust(*trust), *maxTasks, *storageGB, *openInternet)
+		err = join(positional[0], *dataDir, *name, protocol.Trust(*trust), *maxTasks, *storageGB, *openInternet, *noAutoUpdate, *noCrashReports)
 		if err == nil && !*noService {
 			err = svc.Install()
 		}
@@ -130,7 +139,15 @@ func main() {
 			fmt.Println("Joined. sys0 is running in the background.")
 		}
 	case "run":
+		if updater(*dataDir, log).Startup() {
+			os.Exit(1) // went back to the previous version; let the service manager start it
+		}
+		captureCrashes(*dataDir)
 		err = svc.RunManaged()
+	case "update":
+		err = updateNow(updater(*dataDir, log), svc)
+	case "auto-update", "crash-reports":
+		err = setSwitch(*dataDir, cmd, positional)
 	case "egress-proxy":
 		err = egressProxy(*listenAddr, *allow, forwards)
 	case "install":
@@ -178,11 +195,74 @@ func runAgent(ctx context.Context, dataDir string, log *slog.Logger) error {
 		if err != nil {
 			return err
 		}
-		return a.Run(ctx)
+		if cfg.NoAutoUpdate {
+			return a.Run(ctx)
+		}
+		return updater(dataDir, log).Run(ctx, !cli.Interactive(), a.Run)
 	}
 }
 
-func join(code, dataDir, name string, trust protocol.Trust, maxTasks, storageGB int, openInternet bool) error {
+// captureCrashes queues the report of the previous run's crash, if any,
+// and records this run's, unless the owner of this machine turned crash
+// reports off.
+func captureCrashes(dataDir string) {
+	cfg, _ := agent.LoadConfig(dataDir)
+	if cfg.NoCrashReports {
+		return
+	}
+	if r := crash.Harvest(dataDir, "sys0", version.Version); r != nil {
+		crash.Queue(dataDir, r)
+	}
+	crash.Capture(dataDir, "sys0")
+}
+
+func updater(dataDir string, log *slog.Logger) *update.Updater {
+	return &update.Updater{App: "sys0", Current: version.Version, DataDir: dataDir, Log: log}
+}
+
+func updateNow(u *update.Updater, svc *cli.Service) error {
+	if why := u.Allowed(); why != "" {
+		return errors.New("this install can't update itself: " + why)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	v, err := u.Once(ctx)
+	if err != nil {
+		return err
+	}
+	if v == "" {
+		fmt.Println("sys0", u.Current, "is the latest version.")
+		return nil
+	}
+	fmt.Println("Installed sys0", v+".")
+	if svc.Status() == "running" {
+		return svc.Control("restart")
+	}
+	return nil
+}
+
+func setSwitch(dataDir, name string, args []string) error {
+	if len(args) != 1 || (args[0] != "on" && args[0] != "off") {
+		return fmt.Errorf("usage: sys0 %s on|off", name)
+	}
+	cfg, err := agent.LoadConfig(dataDir)
+	if err != nil {
+		return err
+	}
+	off := args[0] == "off"
+	if name == "auto-update" {
+		cfg.NoAutoUpdate = off
+	} else {
+		cfg.NoCrashReports = off
+	}
+	if err := agent.SaveConfig(dataDir, cfg); err != nil {
+		return err
+	}
+	fmt.Printf("%s %s. Restart sys0 to apply: sys0 restart\n", map[string]string{"auto-update": "Automatic updates are", "crash-reports": "Crash reports are"}[name], args[0])
+	return nil
+}
+
+func join(code, dataDir, name string, trust protocol.Trust, maxTasks, storageGB int, openInternet, noAutoUpdate, noCrashReports bool) error {
 	jc, err := protocol.ParseJoinCode(code)
 	if err != nil {
 		return err
@@ -204,6 +284,8 @@ func join(code, dataDir, name string, trust protocol.Trust, maxTasks, storageGB 
 		cfg.StorageGB = storageGB
 	}
 	cfg.OpenInternet = openInternet
+	cfg.NoAutoUpdate = noAutoUpdate
+	cfg.NoCrashReports = noCrashReports
 	return agent.SaveConfig(dataDir, cfg)
 }
 
@@ -221,6 +303,19 @@ func status(dataDir string, svc *cli.Service) {
 	fmt.Println("  trust:  ", cfg.Trust)
 	fmt.Println("  max tasks:", cfg.MaxTasks)
 	fmt.Println("  storage: ", cfg.StorageGB, "GB lent to the pool")
+	if cfg.NoCrashReports {
+		fmt.Println("  crashes:  kept on this machine (sys0 crash-reports on)")
+	} else {
+		fmt.Println("  crashes:  reported to the node")
+	}
+	switch why := updater(dataDir, nil).Allowed(); {
+	case cfg.NoAutoUpdate:
+		fmt.Println("  updates:  automatic updates off (sys0 auto-update on)")
+	case why != "":
+		fmt.Println("  updates: ", why)
+	default:
+		fmt.Println("  updates:  automatic")
+	}
 }
 
 type multiFlag []string
