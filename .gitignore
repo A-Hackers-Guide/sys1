@@ -8,3 +8,6 @@
 /android/.gradle/
 /android/app/build/
 /android/build/
+/ios/Sys0mobile.xcframework/
+/ios/Sys0.xcodeproj/
+/ios/build/

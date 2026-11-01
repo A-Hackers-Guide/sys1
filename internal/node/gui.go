@@ -455,3 +455,16 @@ type screenView struct {
 	Port     int    `json:"port"`
 	Password string `json:"password"`
 }
+
+// HasOnlineMachine reports whether a machine with this name is online
+// (used by tests outside this package).
+func (n *Node) HasOnlineMachine(name string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, a := range n.agents {
+		if a.Name == name && n.online(a, time.Now()) {
+			return true
+		}
+	}
+	return false
+}

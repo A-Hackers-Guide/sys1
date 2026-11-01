@@ -1,0 +1,37 @@
+# The sys0 app for iPhone and iPad, for sideloading (AltStore, SideStore,
+# your own developer certificate). Never distributed through the App Store.
+# Generate the Xcode project with: xcodegen --spec ios/project.yml
+# It expects ios/Sys0mobile.xcframework, built by:
+#   gomobile bind -target ios,iossimulator -iosversion 15.0 -o ios/Sys0mobile.xcframework ./mobile/sys0mobile
+name: Sys0
+options:
+  bundleIdPrefix: io.github.ahackersguide
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  Sys0:
+    type: application
+    platform: iOS
+    sources: [Sys0]
+    dependencies:
+      - framework: Sys0mobile.xcframework
+        embed: false
+    info:
+      path: Sys0/Info.plist
+      properties:
+        CFBundleDisplayName: sys0
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSLocalNetworkUsageDescription: sys0 connects to your sys1 node on your network to lend this device's spare storage.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.ahackersguide.sys0
+        MARKETING_VERSION: "0.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        OTHER_LDFLAGS: ["-lresolv"]
