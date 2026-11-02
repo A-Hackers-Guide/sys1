@@ -1,3 +1,5 @@
+[![Download sys1](https://img.shields.io/sourceforge/dt/sys1.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/sys1/files/latest/download) [![Download sys1](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/sys1/files/latest/download)
+
 <p align="center">
   <img src="site/logo.svg" width="96" alt="sys1 logo">
 </p>
